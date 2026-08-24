@@ -42,7 +42,8 @@ export interface TrackedItemRow {
   link: string | null;
   status: Status;
   color: string;
-  sort_order: number;
+  /** DB kolonu nullable; eski kayitlarda null olabilir */
+  sort_order: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -19,6 +19,8 @@ export default function SettingsScreen() {
 
   // null = tercihen yukleniyor (Switch o arada kapali gorunsun)
   const [notifEnabled, setNotifEnabled] = useState<boolean | null>(null);
+  // Toggle islemi surerken cift tiklamayi engelle (OFF->ON yarisi token birakir)
+  const [notifBusy, setNotifBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,42 +46,65 @@ export default function SettingsScreen() {
     .toUpperCase();
 
   async function handleNotifToggle(value: boolean) {
+    if (notifBusy || notifEnabled === null) return;
+    setNotifBusy(true);
     setNotifEnabled(value);
     await setNotificationsEnabled(value);
-    if (!userId) return;
+    if (!userId) {
+      setNotifBusy(false);
+      return;
+    }
 
-    if (value) {
-      try {
+    try {
+      if (value) {
         // Izin yoksa / Expo Go Android'de / token alinamazsa null doner
         const token = await registerForPushNotifications();
         if (!token) throw new Error("token yok");
         await saveDeviceToken(userId, token);
-      } catch {
-        setNotifEnabled(false);
-        await setNotificationsEnabled(false);
-        Alert.alert(
-          "Bildirimler",
-          "Bildirim izni alınamadı. Cihaz ayarlarından bildirim iznini kontrol edin."
-        );
+      } else {
+        // Token'lar silinir; Edge Function bu kullaniciya artik push gonderemez
+        await deleteDeviceTokens(userId);
       }
-    } else {
-      // Token'lar silinir; Edge Function bu kullaniciya artik push gonderemez
-      deleteDeviceTokens(userId).catch(() => {});
+    } catch {
+      setNotifEnabled(!value);
+      await setNotificationsEnabled(!value);
+      Alert.alert(
+        "Bildirimler",
+        value
+          ? "Bildirim izni alınamadı. Cihaz ayarlarından bildirim iznini kontrol edin."
+          : "Bildirimler kapatılamadı, tekrar deneyin."
+      );
+    } finally {
+      setNotifBusy(false);
     }
   }
 
-  function handleSignOut() {
+  async function handleSignOut() {
     Alert.alert("Çıkış Yap", "Hesabınızdan çıkış yapmak istediğinize emin misiniz?", [
       { text: "Vazgeç", style: "cancel" },
-      { text: "Çıkış Yap", style: "destructive", onPress: () => signOut() },
+      {
+        text: "Çıkış Yap",
+        style: "destructive",
+        onPress: () => {
+          // Cikmadan once bu cihazin token'ini sil; aksi halde eski hesap
+          // bildirim almaya devam eder ve ayni cihaz cift bildirim alir
+          if (userId) deleteDeviceTokens(userId).catch(() => {});
+          signOut();
+        },
+      },
     ]);
   }
 
+  function handleBack() {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)");
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-gray-50" edges={["top", "bottom"]}>
       <View className="flex-row items-center px-5 pt-3 pb-2">
         <Pressable
-          onPress={() => router.back()}
+          onPress={handleBack}
           className="w-10 h-10 rounded-full bg-white border border-gray-100 shadow-sm items-center justify-center"
         >
           <ChevronLeft size={22} color="#374151" />
@@ -120,7 +145,7 @@ export default function SettingsScreen() {
           <Switch
             value={notifEnabled ?? false}
             onValueChange={handleNotifToggle}
-            disabled={notifEnabled === null}
+            disabled={notifEnabled === null || notifBusy}
             trackColor={{ true: "#2D26F0", false: "#D1D5DB" }}
             thumbColor="#ffffff"
           />

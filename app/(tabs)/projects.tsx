@@ -90,6 +90,12 @@ export default function ProjectsScreen() {
     [refetch]
   );
 
+  // Basliga dokunulan kaydi duzenleme modunda acar
+  const openEdit = useCallback((item: TrackedItemRow) => {
+    setEditing(item);
+    setFormVisible(true);
+  }, []);
+
   const confirmDelete = useCallback(
     (item: TrackedItemRow) => {
       Alert.alert("Kaydı Sil", `"${item.title}" silinsin mi?`, [
@@ -97,7 +103,10 @@ export default function ProjectsScreen() {
         {
           text: "Sil",
           style: "destructive",
-          onPress: () => deleteTrackedItem(item.id).finally(() => refetch()),
+          onPress: () =>
+            deleteTrackedItem(item.id)
+              .then(() => refetch())
+              .catch(() => Alert.alert("Hata", "Kayıt silinemedi.")),
         },
       ]);
     },
@@ -144,9 +153,14 @@ export default function ProjectsScreen() {
   // Arama modunda surukleme yok — sade liste
   const renderPlainItem = useCallback(
     ({ item }: { item: TrackedItemRow }) => (
-      <TrackedItemCard item={item} onToggle={toggleItem} onDelete={confirmDelete} />
+      <TrackedItemCard
+        item={item}
+        onToggle={toggleItem}
+        onDelete={confirmDelete}
+        onEdit={openEdit}
+      />
     ),
-    [toggleItem, confirmDelete]
+    [toggleItem, confirmDelete, openEdit]
   );
 
   const renderDragItem = useCallback(
@@ -160,11 +174,16 @@ export default function ProjectsScreen() {
           style={isActive ? DRAG_ACTIVE_STYLE : undefined}
           delayLongPress={250}
         >
-          <TrackedItemCard item={item} onToggle={toggleItem} onDelete={confirmDelete} />
+          <TrackedItemCard
+            item={item}
+            onToggle={toggleItem}
+            onDelete={confirmDelete}
+            onEdit={openEdit}
+          />
         </Pressable>
       );
     },
-    [toggleItem, confirmDelete]
+    [toggleItem, confirmDelete, openEdit]
   );
 
   const listEmpty = loading ? (
@@ -218,6 +237,7 @@ export default function ProjectsScreen() {
             maxToRenderPerBatch={10}
             windowSize={11}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={listEmpty}
           />
         ) : (

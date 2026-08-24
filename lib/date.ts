@@ -95,7 +95,14 @@ export function timeToMinutes(t: string): number {
 }
 
 export function isValidTime(t: string): boolean {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(t.trim());
+  // Tek haneli saat de kabul edilir ("9:30" gecerli)
+  return /^([01]?\d|2[0-3]):[0-5]\d$/.test(t.trim());
+}
+
+/** "9:30" -> "09:30"; gecerli HH:mm/H:mm girisini iki haneli saate cevirir */
+export function normalizeTime(t: string): string {
+  const [h, m] = t.trim().split(":");
+  return `${String(Number(h)).padStart(2, "0")}:${m}`;
 }
 
 /** Secili gun + HH:mm -> ISO string (yerel saat) */

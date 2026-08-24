@@ -9,22 +9,25 @@ import {
 
 interface EventCardProps {
   event: EventRow;
-  /** Basili tutunca duzenleme acilir (Takvim + Ajanda ortak davranis) */
+  /** Dokununca duzenleme acilir (Takvim + Ajanda ortak davranis) */
+  onPress?: () => void;
+  /** Geriye uyumluluk icin uzun basma destegi */
   onLongPress?: () => void;
 }
 
-export default function EventCard({ event, onLongPress }: EventCardProps) {
+export default function EventCard({ event, onPress, onLongPress }: EventCardProps) {
   const meta = EVENT_CATEGORY_META[(event.category ?? "other") as EventCategory];
 
   return (
     <Pressable
+      onPress={onPress}
       onLongPress={onLongPress}
       className="bg-white rounded-2xl shadow-sm border border-gray-100 border-l-4 overflow-hidden mb-3"
       style={{ borderLeftColor: event.color }}
     >
-      <View className="px-4 py-3">
+      <View className="px-4 py-2.5">
         {/* Kategori rozeti + saat araligi */}
-        <View className="flex-row items-center justify-between mb-1.5">
+        <View className="flex-row items-center justify-between mb-1">
           <View
             className="flex-row items-center rounded-full px-2.5 py-1"
             style={{ backgroundColor: `${meta.color}1A` }}
@@ -42,21 +45,24 @@ export default function EventCard({ event, onLongPress }: EventCardProps) {
           </Text>
         </View>
 
-        <Text className="text-gray-900 font-bold text-base" numberOfLines={1}>
-          {event.title}
-        </Text>
+        {/* Baslik + ekleyen kisi ayni satirda */}
+        <View className="flex-row items-center justify-between">
+          <Text className="text-gray-900 font-bold text-base flex-1" numberOfLines={1}>
+            {event.title}
+          </Text>
 
-        {event.created_by_name ? (
-          <View className="flex-row items-center justify-end mt-0.5">
-            <User size={11} color="#9CA3AF" />
-            <Text
-              className="text-gray-400 text-xs ml-1 flex-shrink"
-              numberOfLines={1}
-            >
-              {event.created_by_name}
-            </Text>
-          </View>
-        ) : null}
+          {event.created_by_name ? (
+            <View className="flex-row items-center ml-2">
+              <User size={11} color="#9CA3AF" />
+              <Text
+                className="text-gray-400 text-xs ml-1 flex-shrink"
+                numberOfLines={1}
+              >
+                {event.created_by_name}
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
         {event.location ? (
           <Text className="text-gray-500 text-sm mt-0.5" numberOfLines={1}>

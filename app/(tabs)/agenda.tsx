@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, FlatList, ScrollView } from "react-native";
+import { View, Text, FlatList, Alert } from "react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -83,9 +83,13 @@ export default function AgendaScreen() {
   const { user } = useUser();
   const { items: events, loading, error, refetch } = useEventsRealtime(userId);
 
+  // Gece yarisi asiminda pencere/basliklar bayatlamasin: sekmeye donuste taze "bugun"
+  const [dayAnchor, setDayAnchor] = useState(() => startOfDay(new Date()).getTime());
+
   // Sekmeye her donuste veriyi tazele; realtime gecikse/kesilse bile liste guncel kalir
   useFocusEffect(
     useCallback(() => {
+      setDayAnchor(startOfDay(new Date()).getTime());
       refetch();
     }, [refetch])
   );
@@ -93,11 +97,11 @@ export default function AgendaScreen() {
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [formVisible, setFormVisible] = useState(false);
 
-  const now = new Date();
+  const now = useMemo(() => new Date(dayAnchor), [dayAnchor]);
 
   // Bugunden itibaren 90 gun, baslangic zamanina gore kronolojik gruplar
   const dayGroups = useMemo<DayGroup[]>(() => {
-    const windowStart = startOfDay(new Date());
+    const windowStart = startOfDay(now);
     const windowEnd = addDays(windowStart, AGENDA_WINDOW_DAYS);
 
     const upcoming = events
@@ -124,7 +128,7 @@ export default function AgendaScreen() {
       g.events.push(ev);
     }
     return groups;
-  }, [events]);
+  }, [events, now]);
 
   // Ay adi kartlarindaki ozet: o aydaki (listelenen) etkinlik sayisi
   const monthCounts = useMemo(() => {
@@ -146,18 +150,26 @@ export default function AgendaScreen() {
   const handleSubmit = useCallback(
     async (input: EventInput) => {
       if (!editing) return;
-      await updateEvent(editing.id, input);
-      refetch();
+      try {
+        await updateEvent(editing.id, input);
+        refetch();
+      } catch (e) {
+        throw e instanceof Error ? e : new Error("Güncellenemedi.");
+      }
     },
     [editing, refetch]
   );
 
   // Silme onayi EventFormModal icinde sorulur; burada dogrudan silinir
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!editing) return;
-    deleteEvent(editing.id)
-      .catch(() => {})
-      .finally(() => refetch());
+    try {
+      await deleteEvent(editing.id);
+    } catch {
+      Alert.alert("Hata", "Etkinlik silinemedi.");
+    } finally {
+      refetch();
+    }
   }, [editing, refetch]);
 
   return (
@@ -240,7 +252,7 @@ export default function AgendaScreen() {
                     <EventCard
                       key={ev.id}
                       event={ev}
-                      onLongPress={() => openEdit(ev)}
+                      onPress={() => openEdit(ev)}
                     />
                   ))}
                 </View>
@@ -254,13 +266,11 @@ export default function AgendaScreen() {
           ) : error ? (
             <Text className="text-danger text-center py-10">{error}</Text>
           ) : (
-            <ScrollView>
-              <EmptyState
-                icon={CalendarX2}
-                title="Yaklaşan etkinlik yok"
-                subtitle="Takvim sekmesinden yeni etkinlik ekleyebilirsin"
-              />
-            </ScrollView>
+            <EmptyState
+              icon={CalendarX2}
+              title="Yaklaşan etkinlik yok"
+              subtitle="Takvim sekmesinden yeni etkinlik ekleyebilirsin"
+            />
           )
         }
       />

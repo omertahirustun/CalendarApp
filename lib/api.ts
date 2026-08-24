@@ -140,15 +140,22 @@ export async function deleteTrackedItem(id: string): Promise<void> {
 
 export async function saveDeviceToken(userId: string, pushToken: string): Promise<void> {
   const sb = getSupabase();
-  const { data } = await sb
+  // Once guncelle; eski satir yoksa ekle. Composite unique index'e bagimli
+  // degil, her senaryoda (index eksikse bile) calisir.
+  const { data: updated, error: updErr } = await sb
     .from("device_tokens")
-    .select("id")
+    .update({ push_token: pushToken })
     .eq("user_id", userId)
     .eq("push_token", pushToken)
-    .maybeSingle();
-  if (data) return;
-  const { error } = await sb.from("device_tokens").insert({ user_id: userId, push_token: pushToken });
-  if (error) throw error;
+    .select("user_id");
+  if (updErr) throw updErr;
+  if (updated && updated.length > 0) return;
+
+  const { error: insErr } = await sb
+    .from("device_tokens")
+    .insert({ user_id: userId, push_token: pushToken });
+  // Ayni anda baska istemci eklediyse mukerrer hatayi yut
+  if (insErr && insErr.code !== "23505") throw insErr;
 }
 
 /** Kullanicinin tum cihaz token'larini siler; Edge Function artik bu kullaniciya push gonderemez */

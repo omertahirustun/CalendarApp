@@ -22,6 +22,7 @@ export default function VerifyEmailScreen() {
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
   async function handleVerify(codeOverride?: string) {
     if (!isLoaded) return;
@@ -36,11 +37,30 @@ export default function VerifyEmailScreen() {
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         router.replace("/(tabs)");
+      } else {
+        // complete disindaki durumlar sessiz kalmasin
+        Alert.alert("Doğrulama hatası", "Doğrulama tamamlanamadı. Kodu kontrol edip tekrar deneyin.");
+        setCode("");
       }
     } catch (err: any) {
       Alert.alert("Doğrulama hatası", friendlyClerkError(err));
+      // Hatali/suresi gecmis kodu temizle; kullanici yeniden yazabilsin
+      setCode("");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    if (!isLoaded || resending) return;
+    setResending(true);
+    try {
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      Alert.alert("Kod gönderildi", "Yeni doğrulama kodu e-postana gönderildi.");
+    } catch (err: any) {
+      Alert.alert("Hata", friendlyClerkError(err));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -87,8 +107,18 @@ export default function VerifyEmailScreen() {
           )}
         </Pressable>
 
-        <Pressable onPress={() => router.replace("/(auth)/sign-up")} className="mt-5 items-center">
-          <Text className="text-gray-400 text-sm">Kod gelmedi mi? Kayıt ekranına dön</Text>
+        <Pressable
+          onPress={handleResend}
+          disabled={resending}
+          className="mt-5 items-center"
+        >
+          <Text className="text-primary font-semibold text-sm">
+            {resending ? "Gönderiliyor..." : "Kod gelmedi mi? Tekrar gönder"}
+          </Text>
+        </Pressable>
+
+        <Pressable onPress={() => router.replace("/(auth)/sign-up")} className="mt-3 items-center">
+          <Text className="text-gray-400 text-sm">Kayıt ekranına dön</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>

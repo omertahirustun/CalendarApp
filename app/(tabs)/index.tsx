@@ -160,7 +160,7 @@ export default function CalendarScreen() {
               <EventCard
                 key={ev.id}
                 event={ev}
-                onLongPress={() => openEdit(ev)}
+                onPress={() => openEdit(ev)}
               />
             ))
           )}

@@ -9,9 +9,11 @@ interface TrackedItemCardProps {
   /** Stabil referans icin item'i parametre olarak alir */
   onToggle: (item: TrackedItemRow) => void;
   onDelete?: (item: TrackedItemRow) => void;
+  /** Basliga dokununca duzenleme acar (verilmezse dokunma etkisiz) */
+  onEdit?: (item: TrackedItemRow) => void;
 }
 
-function TrackedItemCardBase({ item, onToggle, onDelete }: TrackedItemCardProps) {
+function TrackedItemCardBase({ item, onToggle, onDelete, onEdit }: TrackedItemCardProps) {
   const completed = item.status === "completed";
 
   return (
@@ -27,7 +29,13 @@ function TrackedItemCardBase({ item, onToggle, onDelete }: TrackedItemCardProps)
           onToggle={() => onToggle(item)}
         />
 
-        <View className="flex-1 ml-3">
+        {/* Baslik/not alanina dokunmak duzenlemeyi acar; link varsa icteki
+            Pressable oncelikli oldugu icin linke dokunma duzenleme acmaz */}
+        <Pressable
+          className="flex-1 ml-3"
+          onPress={onEdit ? () => onEdit(item) : undefined}
+          disabled={!onEdit}
+        >
           <Text
             className={`text-base font-semibold ${completed ? "line-through text-gray-400" : "text-gray-900"}`}
             numberOfLines={2}
@@ -50,7 +58,7 @@ function TrackedItemCardBase({ item, onToggle, onDelete }: TrackedItemCardProps)
               </Text>
             </Pressable>
           ) : null}
-        </View>
+        </Pressable>
 
         {onDelete && (
           <Pressable onPress={() => onDelete(item)} hitSlop={8} className="p-2">

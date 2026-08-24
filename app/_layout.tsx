@@ -37,8 +37,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  // Kalici bildirim tercihi; yuklenene kadar acik varsayilir (eski davranis)
-  const [notificationsOn, setNotificationsOn] = useState(true);
+  // Kalici bildirim tercihi; yuklenene kadar kayit BASLATILMAZ (yaris olmasin)
+  const [notificationsOn, setNotificationsOn] = useState<boolean | null>(null);
 
   // Supabase istekleri icin guncel Clerk JWT saglayicisini bagla
   useEffect(() => {
@@ -55,8 +55,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Push bildirim kaydi (giris yapan + tercihi acik kullanici)
-  usePushNotifications(Boolean(isSignedIn) && notificationsOn);
+  // Push bildirim kaydi: giris yapmis VE tercihi acikca "true" yuklenmis olmali.
+  // null iken kayit baslatilmaz — SecureStore okumasi gecikse token yazilmaz.
+  usePushNotifications(Boolean(isSignedIn) && notificationsOn === true);
 
   const inAuth = segments[0] === "(auth)";
 

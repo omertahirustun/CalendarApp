@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { TextInput, View, Text, Pressable, Alert } from "react-native";
-import { Trash2 } from "lucide-react-native";
+import { Trash2, ChevronLeft, ChevronRight } from "lucide-react-native";
 import FormModal, { Field, inputClass } from "./FormModal";
 import ColorPicker from "./ColorPicker";
 import CategoryPicker from "./CategoryPicker";
-import { isValidTime } from "../lib/date";
+import { addDays, formatFullDate, isValidTime, normalizeTime, startOfDay } from "../lib/date";
 import { EVENT_CATEGORY_META, type EventRow, type EventCategory } from "../lib/types";
 import type { EventInput } from "../lib/api";
 
@@ -14,7 +14,7 @@ interface EventFormModalProps {
   /** created_by_name modal tarafinda null gonderilir; cagiran ekran doldurur */
   onSubmit: (input: EventInput) => Promise<void>;
   /** Sadece duzenleme modunda gorunen Sil butonunun silme isi; verilmezse buton gizlenir */
-  onDelete?: () => void;
+  onDelete?: () => void | Promise<void>;
   /** Duzenleme modunda mevcut event */
   editing?: EventRow | null;
   /** Yeni event icin secili gun (yerel) */
@@ -32,6 +32,8 @@ export default function EventFormModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  // Etkinligin gunu: olusturmada secili gun, duzenlemede mevcut gun; oklarla degisir
+  const [day, setDay] = useState(() => baseDate ?? new Date());
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [color, setColor] = useState<string>("#2D26F0");
@@ -48,6 +50,7 @@ export default function EventFormModal({
       setTitle(editing.title);
       setDescription(editing.description ?? "");
       setLocation(editing.location ?? "");
+      setDay(startOfDay(s));
       setStartTime(`${String(s.getHours()).padStart(2, "0")}:${String(s.getMinutes()).padStart(2, "0")}`);
       setEndTime(`${String(e.getHours()).padStart(2, "0")}:${String(e.getMinutes()).padStart(2, "0")}`);
       setColor(editing.color);
@@ -56,11 +59,13 @@ export default function EventFormModal({
       setTitle("");
       setDescription("");
       setLocation("");
+      setDay(baseDate ? new Date(baseDate) : new Date());
       setStartTime("09:00");
       setEndTime("10:00");
       setColor("#2D26F0");
       setCategory("other");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, editing]);
 
   // Kategori secilince kategorinin varsayilan rengi color'a onerilir;
@@ -78,24 +83,26 @@ export default function EventFormModal({
         text: "Sil",
         style: "destructive",
         onPress: () => {
-          onDelete();
-          onClose();
+          // Silme hatasi cagiran ekranda Alert ile gosterilir; modal yine kapanir
+          void Promise.resolve(onDelete()).finally(() => onClose());
         },
       },
     ]);
   }
 
   async function handleSave() {
-    const day = editing ? new Date(editing.start_time) : baseDate ?? new Date();
     if (!title.trim()) return setError("Başlık gerekli.");
     if (!isValidTime(startTime)) return setError("Başlangıç saati SS:DD formatında olmalı.");
     if (!isValidTime(endTime)) return setError("Bitiş saati SS:DD formatında olmalı.");
 
-    const [sh, sm] = startTime.split(":").map(Number);
-    const [eh, em] = endTime.split(":").map(Number);
+    const [sh, sm] = normalizeTime(startTime).split(":").map(Number);
+    const [eh, em] = normalizeTime(endTime).split(":").map(Number);
     const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), sh, sm);
-    let end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), eh, em);
-    if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+    const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), eh, em);
+    // Sessiz +24h kaydirma yerine net hata: kullanici bitisi duzeltir
+    if (end <= start) {
+      return setError("Bitiş saati başlangıçtan sonra olmalı.");
+    }
 
     setSaving(true);
     try {
@@ -124,6 +131,17 @@ export default function EventFormModal({
       onClose={onClose}
       onSave={handleSave}
       saving={saving}
+      belowSave={
+        editing && onDelete ? (
+          <Pressable
+            onPress={handleDelete}
+            className="flex-row items-center justify-center rounded-2xl border border-red-200 bg-red-50 py-3"
+          >
+            <Trash2 size={18} color="#EF4444" />
+            <Text className="text-danger font-semibold ml-2">Etkinliği Sil</Text>
+          </Pressable>
+        ) : null
+      }
     >
       {error && (
         <View className="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4">
@@ -162,6 +180,24 @@ export default function EventFormModal({
         />
       </Field>
 
+      <Field label="Tarih">
+        <View className="flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl px-2 py-2">
+          <Pressable
+            onPress={() => setDay(addDays(day, -1))}
+            className="w-9 h-9 rounded-full bg-white border border-gray-200 items-center justify-center"
+          >
+            <ChevronLeft size={18} color="#374151" />
+          </Pressable>
+          <Text className="text-gray-900 font-semibold text-sm">{formatFullDate(day)}</Text>
+          <Pressable
+            onPress={() => setDay(addDays(day, 1))}
+            className="w-9 h-9 rounded-full bg-white border border-gray-200 items-center justify-center"
+          >
+            <ChevronRight size={18} color="#374151" />
+          </Pressable>
+        </View>
+      </Field>
+
       <View className="flex-row gap-3">
         <View className="flex-1">
           <Field label="Başlangıç saati">
@@ -198,17 +234,6 @@ export default function EventFormModal({
       <Field label="Renk">
         <ColorPicker value={color} onChange={setColor} />
       </Field>
-
-      {/* Silme sadece duzenleme modunda, kaydet butonunun altinda */}
-      {editing && onDelete ? (
-        <Pressable
-          onPress={handleDelete}
-          className="flex-row items-center justify-center rounded-2xl border border-red-200 bg-red-50 py-3 mt-5 mb-2"
-        >
-          <Trash2 size={18} color="#EF4444" />
-          <Text className="text-danger font-semibold ml-2">Etkinliği Sil</Text>
-        </Pressable>
-      ) : null}
     </FormModal>
   );
 }

@@ -150,20 +150,42 @@ create policy "shared tracked_items" on tracked_items
 -- device_tokens kisiye ozel kalir: her kullanici yalnizca kendi
 -- token'ini yazar; push gonderimi service role ile yapilir.
 
+-- ============================================================
+-- v8 Migration: bütünlük + performans + cron güvenliği
+-- ============================================================
+
+-- Aynı cihaz token'ının aynı kullanıcı altında mükerrer kaydını önle
+-- (önce varsa duplikeleri temizle, sonra unique index koy)
+delete from device_tokens t
+using device_tokens keeper
+where t.user_id = keeper.user_id
+  and t.push_token = keeper.push_token
+  and t.id > keeper.id;
+
+create unique index if not exists device_tokens_user_push_unique
+  on device_tokens (user_id, push_token);
+
+-- Dakikalık hatırlatma sorgusu ve kullanıcı bazlı token aramaları için indeksler
+create index if not exists idx_events_start_time on events (start_time);
+create index if not exists idx_device_tokens_user on device_tokens (user_id);
+
 -- send-event-reminders Edge Function'ini her dakika tetikleyen cron job.
 -- ONCELIK: pg_cron ve pg_net extension'lari aktif olmali:
 --   create extension if not exists pg_cron with schema extensions;
 --   create extension if not exists pg_net with schema extensions;
--- Fonksiyon varsayilan JWT dogrulamasiyla deploy edilir; ANON KEY gecerli bir
--- JWT oldugu icin yeterlidir — service role key'i DB'de saklamaya gerek yok.
--- NOT: <PROJECT_URL> ve <ANON_KEY> yer tutucularini gercek degerlerle degistirin.
-select cron.schedule(
-  'send-event-reminders-every-minute',
-  '* * * * *',
-  $$
-  select net.http_post(
-    url := '<PROJECT_URL>/functions/v1/send-event-reminders',
-    headers := jsonb_build_object('Authorization', 'Bearer <ANON_KEY>', 'Content-Type', 'application/json')
-  );
-  $$
-);
+--
+-- DIKKAT: Asagidaki blogu calistirmadan Once <PROJECT_URL> ve <ANON_KEY>
+-- yer tutucularini gercek degerlerle degistirin; aksi halde her dakika gecersiz
+-- bir adrese POST atan is kurulur. (Mevcut kurulumlarda is zaten kuruludur;
+-- tekrar calistirmak gereksizdir — pg_cron ismiyle eskiyi gunceller.)
+--
+-- select cron.schedule(
+--   'send-event-reminders-every-minute',
+--   '* * * * *',
+--   $$
+--   select net.http_post(
+--     url := '<PROJECT_URL>/functions/v1/send-event-reminders',
+--     headers := jsonb_build_object('Authorization', 'Bearer <ANON_KEY>', 'Content-Type', 'application/json')
+--   );
+--   $$
+-- );

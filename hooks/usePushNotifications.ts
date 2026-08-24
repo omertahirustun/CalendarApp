@@ -73,16 +73,18 @@ export function usePushNotifications(enabled: boolean) {
     if (!enabled || !userId) return;
     let cancelled = false;
 
-    (async () => {
-      try {
-        const token = await registerForPushNotifications();
-        if (!token || cancelled) return;
+  (async () => {
+    try {
+      const token = await registerForPushNotifications();
+      if (!token || cancelled) return;
 
-        await saveDeviceToken(userId, token);
-      } catch {
-        // bildirim kaydi kritik degil, sessiz gec
-      }
-    })();
+      await saveDeviceToken(userId, token);
+      console.log("[bildirim] Token kaydedildi:", userId, token);
+    } catch (e) {
+      // Kayit basarisizsa sebep gorunur olsun (sessiz yutma yerine)
+      console.warn("[bildirim] Token kaydi basarisiz:", e);
+    }
+  })();
 
     return () => {
       cancelled = true;

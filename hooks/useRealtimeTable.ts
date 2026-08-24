@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabase, getAccessToken } from "../lib/supabase";
 
 interface Identifiable {
@@ -42,56 +43,69 @@ export function useRealtimeTable<T extends Identifiable>(
   useEffect(() => {
     if (!userId) return;
     let active = true;
-
-    (async () => {
-      await refetch();
-      if (active) setLoading(false);
-    })();
+    let channel: RealtimeChannel | null = null;
 
     const sb = getSupabase();
     // Her hook instance'i icin benzersiz kanal: ayni tabloyu dinleyen birden fazla
     // ekran olursa (orn. Takvim + Ajanda) ayni kanali paylasmaya calismasin.
     const channelName = `${table}-${userId.slice(-12)}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // RLS'li realtime icin guncel JWT'yi kanala uygula
+    // Aboneligi fetch'ten ONCE kur: aradaki degisiklikler kacmasin.
     (async () => {
+      // RLS'li realtime icin guncel JWT'yi kanala uygula
       try {
         const token = await getAccessToken();
-        if (token) sb.realtime.setAuth(token);
+        if (token && active) sb.realtime.setAuth(token);
       } catch {
         // token alinamazsa accessToken callback devreye girer
       }
+      if (!active) return;
+
+      channel = sb
+        .channel(channelName)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table },
+          (payload: any) => {
+            setItems((prev) => {
+              let next = prev;
+              if (payload.eventType === "INSERT") {
+                const row = payload.new as T;
+                // Refetch satiri zaten eklemisse (realtime ile yarıs), ikinci kopya ekleme
+                next = [row, ...prev.filter((it) => it.id !== row.id)];
+              } else if (payload.eventType === "UPDATE") {
+                next = prev.map((it) =>
+                  it.id === (payload.new as T).id ? (payload.new as T) : it
+                );
+              } else if (payload.eventType === "DELETE") {
+                const oldId = (payload.old as Identifiable).id;
+                next = prev.filter((it) => it.id !== oldId);
+              }
+              return sort(next);
+            });
+          }
+        )
+        .subscribe((status) => {
+          if (!active) return;
+          // Kanal kurulunca/dustugunde bir kez tazele — kacan olaylar toparlanir
+          if (
+            status === "SUBSCRIBED" ||
+            status === "CHANNEL_ERROR" ||
+            status === "TIMED_OUT"
+          ) {
+            refetch().catch(() => {});
+          }
+        });
     })();
 
-    const channel = sb
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        (payload: any) => {
-          setItems((prev) => {
-            let next = prev;
-            if (payload.eventType === "INSERT") {
-              const row = payload.new as T;
-              // Refetch satiri zaten eklemisse (realtime ile yarıs), ikinci kopya ekleme
-              next = [row, ...prev.filter((it) => it.id !== row.id)];
-            } else if (payload.eventType === "UPDATE") {
-              next = prev.map((it) =>
-                it.id === (payload.new as T).id ? (payload.new as T) : it
-              );
-            } else if (payload.eventType === "DELETE") {
-              const oldId = (payload.old as Identifiable).id;
-              next = prev.filter((it) => it.id !== oldId);
-            }
-            return sort(next);
-          });
-        }
-      )
-      .subscribe();
+    // Ilk yukleme realtime'dan bagimsiz olarak hemen yapilir
+    refetch().finally(() => {
+      if (active) setLoading(false);
+    });
 
     return () => {
       active = false;
-      sb.removeChannel(channel);
+      if (channel) sb.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, userId]);

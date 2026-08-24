@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Platform, View, Text, Pressable } from "react-native";
 import type { ErrorBoundaryProps } from "expo-router";
 import { CalendarDays, Clock3, FolderKanban } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
   return (
@@ -31,6 +32,12 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  // Icerik yuksekligi sabit; sistem navigasyon cubugu inset'i cihaza gore eklenir.
+  // Hareket (gesture) cubugunda ince, geri/ana menu/kare tuslu klasik Android'de
+  // tab bar otomatik olarak tuslarin ustune tasinar.
+  const tabBarContentHeight = Platform.OS === "ios" ? 54 : 56;
+
   return (
     <Tabs
       screenOptions={{
@@ -44,7 +51,7 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: "#FFFFFF",
           borderTopColor: "#F3F4F6",
-          height: Platform.OS === "ios" ? 88 : 64,
+          height: tabBarContentHeight + insets.bottom,
           paddingTop: 6,
         },
       }}
