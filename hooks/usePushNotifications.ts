@@ -25,7 +25,11 @@ function getEASProjectId(): string | undefined {
   );
 }
 
-export async function registerForPushNotifications(): Promise<string | null> {
+export type PushRegistration =
+  | { ok: true; token: string }
+  | { ok: false; reason: "denied" | "expo-go" | "error"; message: string };
+
+export async function registerForPushNotifications(): Promise<PushRegistration> {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("reminders", {
       name: "Hatırlatıcılar",
@@ -40,7 +44,14 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
-  if (finalStatus !== "granted") return null;
+  if (finalStatus !== "granted") {
+    console.warn("[bildirim] Izin verilmedi:", finalStatus);
+    return {
+      ok: false,
+      reason: "denied",
+      message: "Bildirim izni verilmedi. Cihaz ayarlarından izin verin.",
+    };
+  }
 
   // Uzak bildirim kaydi Expo Go Android'de mumkun degil; local izin/channel islemleri kalsin
   if (Platform.OS === "android" && IS_EXPO_GO) {
@@ -48,7 +59,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
       "[bildirim] Uzak bildirimler Expo Go'da desteklenmiyor (SDK 53+). " +
         "Push icin development build gerekli: https://docs.expo.dev/develop/development-builds/introduction/"
     );
-    return null;
+    return {
+      ok: false,
+      reason: "expo-go",
+      message:
+        "Expo Go uzak bildirimleri desteklemiyor. Test için APK (development build) kurun.",
+    };
   }
 
   try {
@@ -56,9 +72,18 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const token = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
     );
-    return token.data;
-  } catch {
-    return null;
+    return { ok: true, token: token.data };
+  } catch (e) {
+    // Android gercek build'lerde en yaygin sebep: Firebase/FCM kimlikleri
+    // Expo proje'sine yuklenmemis olmasi (eas credentials).
+    console.warn("[bildirim] Token alinamadi:", e);
+    return {
+      ok: false,
+      reason: "error",
+      message:
+        `Push token alınamadı${e instanceof Error ? `: ${e.message}` : ""}. ` +
+        "Android'de genellikle Firebase (FCM) kimliklerinin eksikliğinden olur.",
+    };
   }
 }
 
@@ -73,18 +98,22 @@ export function usePushNotifications(enabled: boolean) {
     if (!enabled || !userId) return;
     let cancelled = false;
 
-  (async () => {
-    try {
-      const token = await registerForPushNotifications();
-      if (!token || cancelled) return;
+    (async () => {
+      try {
+        const res = await registerForPushNotifications();
+        if (!res.ok) {
+          console.warn("[bildirim] Kayit atlandi:", res.message);
+          return;
+        }
+        if (cancelled) return;
 
-      await saveDeviceToken(userId, token);
-      console.log("[bildirim] Token kaydedildi:", userId, token);
-    } catch (e) {
-      // Kayit basarisizsa sebep gorunur olsun (sessiz yutma yerine)
-      console.warn("[bildirim] Token kaydi basarisiz:", e);
-    }
-  })();
+        await saveDeviceToken(userId, res.token);
+        console.log("[bildirim] Token kaydedildi:", userId, res.token);
+      } catch (e) {
+        // Kayit basarisizsa sebep gorunur olsun
+        console.warn("[bildirim] Token kaydi basarisiz:", e);
+      }
+    })();
 
     return () => {
       cancelled = true;

@@ -67,11 +67,13 @@ export default function FormModal({
             </View>
 
             {/* Alanlar kaydirilabilir; Kaydet butonu scroll DIŞINDA sabit durur —
-                icerik ne kadar uzun olursa olsun her zaman tam gorunur */}
+                icerik ne kadar uzun olursa olsun her zaman tam gorunur.
+                nestedScrollEnabled: icteki saat tekerleginin kaydini saglar */}
             <ScrollView
               keyboardShouldPersistTaps="handled"
               className="px-5"
               style={{ flexShrink: 1 }}
+              nestedScrollEnabled
             >
               {children}
             </ScrollView>

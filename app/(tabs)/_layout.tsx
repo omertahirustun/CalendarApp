@@ -35,8 +35,10 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   // Icerik yuksekligi sabit; sistem navigasyon cubugu inset'i cihaza gore eklenir.
   // Hareket (gesture) cubugunda ince, geri/ana menu/kare tuslu klasik Android'de
-  // tab bar otomatik olarak tuslarin ustune tasinar.
-  const tabBarContentHeight = Platform.OS === "ios" ? 54 : 56;
+  // tab bar otomatik olarak tuslarin ustune tasinar. Android'e kucuk sabit ek:
+  // bazi ureticilerin cubuk olcumu gercektekinden biraz dusuk geliyor.
+  const tabBarContentHeight =
+    (Platform.OS === "ios" ? 54 : 56) + (Platform.OS === "android" ? 8 : 0);
 
   return (
     <Tabs

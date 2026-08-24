@@ -57,10 +57,22 @@ export default function SettingsScreen() {
 
     try {
       if (value) {
-        // Izin yoksa / Expo Go Android'de / token alinamazsa null doner
-        const token = await registerForPushNotifications();
-        if (!token) throw new Error("token yok");
-        await saveDeviceToken(userId, token);
+        // Izin / Expo Go / token alimi ayristirilir; sebep kullaniciya net soylenir
+        const res = await registerForPushNotifications();
+        if (!res.ok) {
+          setNotifEnabled(false);
+          await setNotificationsEnabled(false);
+          Alert.alert(
+            "Bildirimler",
+            res.reason === "denied"
+              ? "Bildirim izni verilmedi. Telefonun ayarlarından uygulamaya bildirim izni verin."
+              : res.reason === "expo-go"
+                ? "Expo Go uzak bildirimleri desteklemiyor. Test için APK kurun."
+                : res.message
+          );
+          return;
+        }
+        await saveDeviceToken(userId, res.token);
       } else {
         // Token'lar silinir; Edge Function bu kullaniciya artik push gonderemez
         await deleteDeviceTokens(userId);
@@ -71,7 +83,7 @@ export default function SettingsScreen() {
       Alert.alert(
         "Bildirimler",
         value
-          ? "Bildirim izni alınamadı. Cihaz ayarlarından bildirim iznini kontrol edin."
+          ? "Cihaz kaydedilemedi, tekrar deneyin."
           : "Bildirimler kapatılamadı, tekrar deneyin."
       );
     } finally {

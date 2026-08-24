@@ -4,9 +4,6 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useFocusEffect } from "expo-router";
 import { Plus, FolderKanban, Search } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DragList, {
-  type DragListRenderItemInfo,
-} from "react-native-draglist";
 
 import Header from "../../components/Header";
 import TrackedItemCard from "../../components/TrackedItemCard";
@@ -16,19 +13,9 @@ import { useTrackedItemsRealtime } from "../../hooks/useTrackedItemsRealtime";
 import {
   createTrackedItem,
   deleteTrackedItem,
-  reorderTrackedItems,
   updateTrackedItem,
 } from "../../lib/api";
 import type { TrackedItemRow } from "../../lib/types";
-
-// Surukleme sirasinda kart vurgusu — her render'da yeni obje olusmasin diye sabit
-const DRAG_ACTIVE_STYLE = {
-  shadowColor: "#2D26F0",
-  shadowOpacity: 0.25,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
-  elevation: 8,
-};
 
 export default function ProjectsScreen() {
   const { userId } = useAuth();
@@ -45,26 +32,9 @@ export default function ProjectsScreen() {
   const [query, setQuery] = useState("");
   const [formVisible, setFormVisible] = useState(false);
   const [editing, setEditing] = useState<TrackedItemRow | null>(null);
-  // Sunucu yazimi tamamlanana kadar suruklenen sirayi optimistik tutar
-  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
 
-  // Optimistik siralama override'u; sunucu ayni sirayi dondugunde temizlenir
-  const ordered = useMemo(() => {
-    if (!dragOrder) return tracked;
-    const map = new Map(tracked.map((t) => [t.id, t]));
-    const sorted = dragOrder
-      .map((id) => map.get(id))
-      .filter((t): t is TrackedItemRow => Boolean(t));
-    const rest = tracked.filter((t) => !dragOrder.includes(t.id));
-    return [...sorted, ...rest];
-  }, [tracked, dragOrder]);
-
-  useEffect(() => {
-    if (!dragOrder) return;
-    if (tracked.map((t) => t.id).join(",") === dragOrder.join(",")) {
-      setDragOrder(null);
-    }
-  }, [tracked, dragOrder]);
+  // Sadelestirildi: surukleme kaldirildi; siralama sunucudan gelen sort_order
+  const ordered = tracked;
 
   const visible = useMemo(() => {
     if (!query.trim()) return ordered;
@@ -128,30 +98,8 @@ export default function ProjectsScreen() {
     refetch();
   }
 
-  // Arama varken (filtreli/kismi liste) suruklemeyi kapat
-  const dragEnabled = !query.trim();
-
-  // Surukleme bitince yeni sirayi ANINDA local state'e yansit; rpc'yi bekleme.
-  // DragList bu fonksiyon bitene kadar arayuzu surukleme modunda tutar — network
-  // beklersek kartlar yanlis konumda takili kalir, sonra ziplayarak duzelir.
-  const handleReordered = useCallback(
-    (fromIndex: number, toIndex: number) => {
-      const copy = [...ordered];
-      const [moved] = copy.splice(fromIndex, 1);
-      copy.splice(toIndex, 0, moved);
-      const ids = copy.map((t) => t.id);
-      setDragOrder(ids);
-      if (!userId) return;
-      reorderTrackedItems(userId, ids).catch(() => {
-        Alert.alert("Hata", "Sıralama kaydedilemedi.");
-        setDragOrder(null); // hata durumunda eski siraya don
-      });
-    },
-    [ordered, userId]
-  );
-
-  // Arama modunda surukleme yok — sade liste
-  const renderPlainItem = useCallback(
+  // Tek duz liste render'i; arama filtresiyle ayni
+  const renderItem = useCallback(
     ({ item }: { item: TrackedItemRow }) => (
       <TrackedItemCard
         item={item}
@@ -160,29 +108,6 @@ export default function ProjectsScreen() {
         onEdit={openEdit}
       />
     ),
-    [toggleItem, confirmDelete, openEdit]
-  );
-
-  const renderDragItem = useCallback(
-    (info: DragListRenderItemInfo<TrackedItemRow>) => {
-      const { item, isActive, onDragStart, onDragEnd } = info;
-      return (
-        <Pressable
-          onLongPress={onDragStart}
-          onPressOut={onDragEnd}
-          disabled={isActive}
-          style={isActive ? DRAG_ACTIVE_STYLE : undefined}
-          delayLongPress={250}
-        >
-          <TrackedItemCard
-            item={item}
-            onToggle={toggleItem}
-            onDelete={confirmDelete}
-            onEdit={openEdit}
-          />
-        </Pressable>
-      );
-    },
     [toggleItem, confirmDelete, openEdit]
   );
 
@@ -222,39 +147,19 @@ export default function ProjectsScreen() {
       </View>
 
       <View className="flex-1 px-4 pt-4">
-        {dragEnabled ? (
-          <DragList
-            // containerStyle sarmalayici View'a uygulanir — vermezsek icteki
-            // flex:1 liste yuksekligi 0'a coker ve HICBIR SEY gorunmez!
-            containerStyle={{ flex: 1 }}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 96 }}
-            data={visible}
-            keyExtractor={(t) => t.id}
-            onReordered={handleReordered}
-            renderItem={renderDragItem}
-            initialNumToRender={15}
-            maxToRenderPerBatch={10}
-            windowSize={11}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={listEmpty}
-          />
-        ) : (
-          <FlatList
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 96 }}
-            data={visible}
-            keyExtractor={(t) => t.id}
-            renderItem={renderPlainItem}
-            initialNumToRender={15}
-            maxToRenderPerBatch={10}
-            windowSize={11}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={listEmpty}
-          />
-        )}
+        <FlatList
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 96 }}
+          data={visible}
+          keyExtractor={(t) => t.id}
+          renderItem={renderItem}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={11}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={listEmpty}
+        />
       </View>
 
       <Pressable

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { TextInput, View, Text, Pressable, Alert } from "react-native";
-import { Trash2, ChevronLeft, ChevronRight } from "lucide-react-native";
+import { Trash2, ChevronLeft, ChevronRight, Clock } from "lucide-react-native";
 import FormModal, { Field, inputClass } from "./FormModal";
 import ColorPicker from "./ColorPicker";
 import CategoryPicker from "./CategoryPicker";
+import TimeWheelPicker from "./TimeWheelPicker";
 import { addDays, formatFullDate, isValidTime, normalizeTime, startOfDay } from "../lib/date";
 import { EVENT_CATEGORY_META, type EventRow, type EventCategory } from "../lib/types";
 import type { EventInput } from "../lib/api";
@@ -38,12 +39,15 @@ export default function EventFormModal({
   const [endTime, setEndTime] = useState("10:00");
   const [color, setColor] = useState<string>("#2D26F0");
   const [category, setCategory] = useState<EventCategory>("other");
+  // Saat tekerlegi yalnizca ilgili alana dokununca acilir
+  const [activeWheel, setActiveWheel] = useState<"start" | "end" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setError(null);
+    setActiveWheel(null);
     if (editing) {
       const s = new Date(editing.start_time);
       const e = new Date(editing.end_time);
@@ -201,31 +205,41 @@ export default function EventFormModal({
       <View className="flex-row gap-3">
         <View className="flex-1">
           <Field label="Başlangıç saati">
-            <TextInput
-              className={inputClass}
-              placeholder="09:00"
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              value={startTime}
-              onChangeText={(t) => setStartTime(t.replace(/[^0-9:]/g, ""))}
-              placeholderTextColor="#9CA3AF"
-            />
+            <Pressable
+              onPress={() =>
+                setActiveWheel(activeWheel === "start" ? null : "start")
+              }
+              className={`${inputClass} flex-row items-center justify-between ${activeWheel === "start" ? "border-primary" : ""}`}
+            >
+              <Text className="text-base text-gray-900">{startTime}</Text>
+              <Clock size={18} color="#6B7280" />
+            </Pressable>
           </Field>
         </View>
         <View className="flex-1">
           <Field label="Bitiş saati">
-            <TextInput
-              className={inputClass}
-              placeholder="10:00"
-              keyboardType="numbers-and-punctuation"
-              maxLength={5}
-              value={endTime}
-              onChangeText={(t) => setEndTime(t.replace(/[^0-9:]/g, ""))}
-              placeholderTextColor="#9CA3AF"
-            />
+            <Pressable
+              onPress={() =>
+                setActiveWheel(activeWheel === "end" ? null : "end")
+              }
+              className={`${inputClass} flex-row items-center justify-between ${activeWheel === "end" ? "border-primary" : ""}`}
+            >
+              <Text className="text-base text-gray-900">{endTime}</Text>
+              <Clock size={18} color="#6B7280" />
+            </Pressable>
           </Field>
         </View>
       </View>
+
+      {/* Tekerlek yalnizca secili alan icin, alanin hemen altinda acilir */}
+      {activeWheel && (
+        <View className="mb-4">
+          <TimeWheelPicker
+            value={activeWheel === "start" ? startTime : endTime}
+            onChange={activeWheel === "start" ? setStartTime : setEndTime}
+          />
+        </View>
+      )}
 
       <Field label="Kategori">
         <CategoryPicker value={category} onChange={handleCategoryChange} />
