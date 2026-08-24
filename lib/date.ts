@@ -120,26 +120,15 @@ export function formatFullDate(d: Date): string {
   return `${d.getDate()} ${MONTHS_TR[d.getMonth()]} ${d.getFullYear()}, ${WEEKDAYS_TR[(d.getDay() + 6) % 7]}`;
 }
 
-export type AgendaGroup = "today" | "tomorrow" | "week" | "later";
-
-export function agendaGroupOf(dateIso: string): AgendaGroup {
-  const now = new Date();
-  const target = new Date(dateIso);
-  const today = startOfDay(now);
-  const t = startOfDay(target);
-  const diffDays = Math.round((t.getTime() - today.getTime()) / 86400000);
-  if (diffDays === 0) return "today";
-  if (diffDays === 1) return "tomorrow";
-  if (diffDays > 1 && diffDays <= 6) return "week";
-  return "later";
+/** Ajanda baslik etiketi: gercek tarih + gun adi, "23 Ağustos, Pazar (Bugün)" */
+export function formatAgendaDayLabel(d: Date): string {
+  const diffDays = Math.round(
+    (startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / 86400000
+  );
+  const suffix =
+    diffDays === 0 ? " (Bugün)" : diffDays === 1 ? " (Yarın)" : "";
+  return `${d.getDate()} ${MONTHS_TR[d.getMonth()]}, ${WEEKDAYS_TR[(d.getDay() + 6) % 7]}${suffix}`;
 }
-
-export const AGENDA_GROUP_LABELS: Record<AgendaGroup, string> = {
-  today: "Bugün",
-  tomorrow: "Yarın",
-  week: "Bu Hafta",
-  later: "Daha Sonra",
-};
 
 export function isSameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();

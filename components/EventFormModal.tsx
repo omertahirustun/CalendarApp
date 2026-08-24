@@ -1,21 +1,20 @@
 import { useEffect, useState } from "react";
-import { TextInput, View, Text } from "react-native";
+import { TextInput, View, Text, Pressable, Alert } from "react-native";
+import { Trash2 } from "lucide-react-native";
 import FormModal, { Field, inputClass } from "./FormModal";
 import ColorPicker from "./ColorPicker";
+import CategoryPicker from "./CategoryPicker";
 import { isValidTime } from "../lib/date";
-import type { EventRow } from "../lib/types";
+import { EVENT_CATEGORY_META, type EventRow, type EventCategory } from "../lib/types";
+import type { EventInput } from "../lib/api";
 
 interface EventFormModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (input: {
-    title: string;
-    description: string | null;
-    start_time: string;
-    end_time: string;
-    location: string | null;
-    color: string;
-  }) => Promise<void>;
+  /** created_by_name modal tarafinda null gonderilir; cagiran ekran doldurur */
+  onSubmit: (input: EventInput) => Promise<void>;
+  /** Sadece duzenleme modunda gorunen Sil butonunun silme isi; verilmezse buton gizlenir */
+  onDelete?: () => void;
   /** Duzenleme modunda mevcut event */
   editing?: EventRow | null;
   /** Yeni event icin secili gun (yerel) */
@@ -26,6 +25,7 @@ export default function EventFormModal({
   visible,
   onClose,
   onSubmit,
+  onDelete,
   editing,
   baseDate,
 }: EventFormModalProps) {
@@ -34,7 +34,8 @@ export default function EventFormModal({
   const [location, setLocation] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
-  const [color, setColor] = useState<string>("#7C3AED");
+  const [color, setColor] = useState<string>("#2D26F0");
+  const [category, setCategory] = useState<EventCategory>("other");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -50,15 +51,39 @@ export default function EventFormModal({
       setStartTime(`${String(s.getHours()).padStart(2, "0")}:${String(s.getMinutes()).padStart(2, "0")}`);
       setEndTime(`${String(e.getHours()).padStart(2, "0")}:${String(e.getMinutes()).padStart(2, "0")}`);
       setColor(editing.color);
+      setCategory(editing.category ?? "other");
     } else {
       setTitle("");
       setDescription("");
       setLocation("");
       setStartTime("09:00");
       setEndTime("10:00");
-      setColor("#7C3AED");
+      setColor("#2D26F0");
+      setCategory("other");
     }
   }, [visible, editing]);
+
+  // Kategori secilince kategorinin varsayilan rengi color'a onerilir;
+  // kullanici istersen ColorPicker'dan degistirebilir.
+  function handleCategoryChange(next: EventCategory) {
+    setCategory(next);
+    setColor(EVENT_CATEGORY_META[next].color);
+  }
+
+  function handleDelete() {
+    if (!editing || !onDelete) return;
+    Alert.alert("Etkinliği Sil", `"${editing.title}" silinsin mi?`, [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: () => {
+          onDelete();
+          onClose();
+        },
+      },
+    ]);
+  }
 
   async function handleSave() {
     const day = editing ? new Date(editing.start_time) : baseDate ?? new Date();
@@ -81,6 +106,8 @@ export default function EventFormModal({
         end_time: end.toISOString(),
         location: location.trim() || null,
         color,
+        category,
+        created_by_name: null,
       });
       onClose();
     } catch (e) {
@@ -164,9 +191,24 @@ export default function EventFormModal({
         </View>
       </View>
 
+      <Field label="Kategori">
+        <CategoryPicker value={category} onChange={handleCategoryChange} />
+      </Field>
+
       <Field label="Renk">
         <ColorPicker value={color} onChange={setColor} />
       </Field>
+
+      {/* Silme sadece duzenleme modunda, kaydet butonunun altinda */}
+      {editing && onDelete ? (
+        <Pressable
+          onPress={handleDelete}
+          className="flex-row items-center justify-center rounded-2xl border border-red-200 bg-red-50 py-3 mt-5 mb-2"
+        >
+          <Trash2 size={18} color="#EF4444" />
+          <Text className="text-danger font-semibold ml-2">Etkinliği Sil</Text>
+        </Pressable>
+      ) : null}
     </FormModal>
   );
 }

@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { Slot, Redirect, useSegments, useRouter } from "expo-router";
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setClerkTokenGetter } from "../lib/supabase";
 import { usePushNotifications } from "../hooks/usePushNotifications";
@@ -58,7 +59,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (!isLoaded) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#7C3AED" />
+        <ActivityIndicator size="large" color="#2D26F0" />
       </View>
     );
   }
@@ -89,8 +90,10 @@ export default function RootLayout() {
   }
 
   return (
-    <ClerkProvider publishableKey={CLERK_KEY ?? ""} tokenCache={tokenCache}>
-      <RootNavigator />
-    </ClerkProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ClerkProvider publishableKey={CLERK_KEY ?? ""} tokenCache={tokenCache}>
+        <RootNavigator />
+      </ClerkProvider>
+    </GestureHandlerRootView>
   );
 }

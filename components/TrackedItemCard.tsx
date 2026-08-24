@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { View, Text, Pressable, Linking } from "react-native";
 import { Trash2, Link2 } from "lucide-react-native";
 import CheckboxCircle from "./CheckboxCircle";
@@ -5,11 +6,12 @@ import type { TrackedItemRow } from "../lib/types";
 
 interface TrackedItemCardProps {
   item: TrackedItemRow;
-  onToggle: () => void;
-  onDelete?: () => void;
+  /** Stabil referans icin item'i parametre olarak alir */
+  onToggle: (item: TrackedItemRow) => void;
+  onDelete?: (item: TrackedItemRow) => void;
 }
 
-export default function TrackedItemCard({ item, onToggle, onDelete }: TrackedItemCardProps) {
+function TrackedItemCardBase({ item, onToggle, onDelete }: TrackedItemCardProps) {
   const completed = item.status === "completed";
 
   return (
@@ -20,7 +22,10 @@ export default function TrackedItemCard({ item, onToggle, onDelete }: TrackedIte
       style={{ borderLeftColor: item.color }}
     >
       <View className="flex-row items-center px-4 py-3.5">
-        <CheckboxCircle checked={completed} onToggle={onToggle} />
+        <CheckboxCircle
+          checked={completed}
+          onToggle={() => onToggle(item)}
+        />
 
         <View className="flex-1 ml-3">
           <Text
@@ -39,7 +44,7 @@ export default function TrackedItemCard({ item, onToggle, onDelete }: TrackedIte
               onPress={() => Linking.openURL(item.link!)}
               className="flex-row items-center gap-1 mt-1"
             >
-              <Link2 size={12} color="#7C3AED" />
+              <Link2 size={12} color="#2D26F0" />
               <Text className="text-primary text-xs" numberOfLines={1}>
                 {item.link.replace(/^https?:\/\//, "")}
               </Text>
@@ -48,7 +53,7 @@ export default function TrackedItemCard({ item, onToggle, onDelete }: TrackedIte
         </View>
 
         {onDelete && (
-          <Pressable onPress={onDelete} hitSlop={8} className="p-2">
+          <Pressable onPress={() => onDelete(item)} hitSlop={8} className="p-2">
             <Trash2 size={18} color="#EF4444" />
           </Pressable>
         )}
@@ -56,3 +61,8 @@ export default function TrackedItemCard({ item, onToggle, onDelete }: TrackedIte
     </View>
   );
 }
+
+/** Surukleme sirasinda diger kartlarin gereksiz re-render'ini onler */
+const TrackedItemCard = memo(TrackedItemCardBase);
+
+export default TrackedItemCard;

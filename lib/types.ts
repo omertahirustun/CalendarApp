@@ -1,5 +1,22 @@
-export type Priority = "high" | "medium" | "low";
 export type Status = "pending" | "completed";
+
+export type EventCategory =
+  | "meeting"
+  | "project"
+  | "payment"
+  | "health"
+  | "other";
+
+export const EVENT_CATEGORY_META: Record<
+  EventCategory,
+  { label: string; emoji: string; color: string }
+> = {
+  meeting: { label: "Toplantı", emoji: "🤝", color: "#2D26F0" },
+  project: { label: "Proje", emoji: "📁", color: "#F59E0B" },
+  payment: { label: "Ödeme", emoji: "💳", color: "#10B981" },
+  health: { label: "Sağlık & Spor", emoji: "💪", color: "#14B8A6" },
+  other: { label: "Diğer", emoji: "📌", color: "#6B7280" },
+};
 
 export interface EventRow {
   id: string;
@@ -10,18 +27,9 @@ export interface EventRow {
   end_time: string;
   location: string | null;
   color: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TaskRow {
-  id: string;
-  user_id: string;
-  title: string;
-  status: Status;
-  priority: Priority;
-  due_date: string | null;
-  color: string;
+  category: EventCategory;
+  created_by_name: string | null;
+  reminder_sent_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,12 +42,13 @@ export interface TrackedItemRow {
   link: string | null;
   status: Status;
   color: string;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
 
 export const PALETTE = [
-  "#7C3AED",
+  "#2D26F0",
   "#6366F1",
   "#3B82F6",
   "#EF4444",
@@ -48,9 +57,3 @@ export const PALETTE = [
   "#EC4899",
   "#0EA5E9",
 ] as const;
-
-export const PRIORITY_META: Record<Priority, { label: string; color: string; bg: string }> = {
-  high: { label: "Yüksek", color: "#EF4444", bg: "rgba(239,68,68,0.12)" },
-  medium: { label: "Orta", color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
-  low: { label: "Düşük", color: "#10B981", bg: "rgba(16,185,129,0.12)" },
-};

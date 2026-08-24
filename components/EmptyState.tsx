@@ -11,7 +11,7 @@ export default function EmptyState({ icon: Icon, title, subtitle }: EmptyStatePr
   return (
     <View className="items-center justify-center py-16 px-6">
       <View className="w-20 h-20 rounded-3xl bg-primary-softer items-center justify-center mb-4">
-        <Icon size={36} color="#7C3AED" />
+        <Icon size={36} color="#2D26F0" />
       </View>
       <Text className="text-gray-900 font-bold text-base text-center">{title}</Text>
       {subtitle && (

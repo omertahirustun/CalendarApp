@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 import { Platform, View, Text, Pressable } from "react-native";
 import type { ErrorBoundaryProps } from "expo-router";
-import { CalendarDays, ListTodo, Clock3, FolderKanban } from "lucide-react-native";
+import { CalendarDays, Clock3, FolderKanban } from "lucide-react-native";
 
 export function ErrorBoundary(props: ErrorBoundaryProps) {
   return (
@@ -24,7 +24,7 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
         {String(props.error?.message ?? props.error)}
       </Text>
       <Pressable onPress={props.retry} style={{ marginTop: 16 }}>
-        <Text style={{ color: "#7C3AED", fontWeight: "700" }}>Tekrar dene</Text>
+        <Text style={{ color: "#2D26F0", fontWeight: "700" }}>Tekrar dene</Text>
       </Pressable>
     </View>
   );
@@ -35,7 +35,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#7C3AED",
+        tabBarActiveTintColor: "#2D26F0",
         tabBarInactiveTintColor: "#9CA3AF",
         tabBarLabelStyle: {
           fontSize: 11,
@@ -54,13 +54,6 @@ export default function TabsLayout() {
         options={{
           title: "Takvim",
           tabBarIcon: ({ color }) => <CalendarDays size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="tasks"
-        options={{
-          title: "Yapılacaklar",
-          tabBarIcon: ({ color }) => <ListTodo size={24} color={color} />,
         }}
       />
       <Tabs.Screen

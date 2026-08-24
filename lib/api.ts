@@ -1,5 +1,5 @@
 import { getSupabase } from "./supabase";
-import type { EventRow, TaskRow, TrackedItemRow, Priority, Status } from "./types";
+import type { EventRow, EventCategory, TrackedItemRow, Status } from "./types";
 
 // ---------- Events ----------
 
@@ -21,6 +21,9 @@ export type EventInput = {
   end_time: string;
   location?: string | null;
   color: string;
+  category: EventCategory;
+  /** Etkinligi ekleyen kullanicinin adi; sadece create'te yazilir */
+  created_by_name: string | null;
 };
 
 export async function createEvent(userId: string, input: EventInput): Promise<EventRow> {
@@ -36,9 +39,11 @@ export async function createEvent(userId: string, input: EventInput): Promise<Ev
 
 export async function updateEvent(id: string, input: EventInput): Promise<void> {
   const sb = getSupabase();
+  // created_by_name olusturmada bir kez yazilir; duzenlemede degismesin
+  const { created_by_name, ...editable } = input;
   const { error } = await sb
     .from("events")
-    .update({ ...input, updated_at: new Date().toISOString() })
+    .update({ ...editable, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
 }
@@ -46,55 +51,6 @@ export async function updateEvent(id: string, input: EventInput): Promise<void> 
 export async function deleteEvent(id: string): Promise<void> {
   const sb = getSupabase();
   const { error } = await sb.from("events").delete().eq("id", id);
-  if (error) throw error;
-}
-
-// ---------- Tasks ----------
-
-export async function fetchTasks(userId: string): Promise<TaskRow[]> {
-  const sb = getSupabase();
-  const { data, error } = await sb
-    .from("tasks")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as TaskRow[];
-}
-
-export type TaskInput = {
-  title: string;
-  priority: Priority;
-  due_date: string | null;
-  color: string;
-};
-
-export async function createTask(userId: string, input: TaskInput): Promise<TaskRow> {
-  const sb = getSupabase();
-  const { data, error } = await sb
-    .from("tasks")
-    .insert({ ...input, status: "pending" as Status, user_id: userId })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as TaskRow;
-}
-
-export async function updateTask(
-  id: string,
-  patch: Partial<Pick<TaskRow, "title" | "priority" | "due_date" | "color" | "status">>
-): Promise<void> {
-  const sb = getSupabase();
-  const { error } = await sb
-    .from("tasks")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) throw error;
-}
-
-export async function deleteTask(id: string): Promise<void> {
-  const sb = getSupabase();
-  const { error } = await sb.from("tasks").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -106,7 +62,7 @@ export async function fetchTrackedItems(userId: string): Promise<TrackedItemRow[
     .from("tracked_items")
     .select("*")
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("sort_order", { ascending: true, nullsFirst: false });
   if (error) throw error;
   return (data ?? []) as TrackedItemRow[];
 }
@@ -123,13 +79,41 @@ export async function createTrackedItem(
   input: TrackedItemInput
 ): Promise<TrackedItemRow> {
   const sb = getSupabase();
+  // Yeni oge listenin en altina eklensin: mevcut en yuksek sort_order + 1
+  const { data: maxRow } = await sb
+    .from("tracked_items")
+    .select("sort_order")
+    .eq("user_id", userId)
+    .order("sort_order", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = (maxRow?.sort_order ?? -1) + 1;
+
   const { data, error } = await sb
     .from("tracked_items")
-    .insert({ ...input, status: "pending" as Status, user_id: userId })
+    .insert({
+      ...input,
+      status: "pending" as Status,
+      user_id: userId,
+      sort_order: nextOrder,
+    })
     .select()
     .single();
   if (error) throw error;
   return data as TrackedItemRow;
+}
+
+/** Surukle-birak sonrasi yeni sirayi TEK istekte kaydeder (Postgres rpc) */
+export async function reorderTrackedItems(
+  userId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb.rpc("reorder_tracked_items", {
+    p_user_id: userId,
+    p_ids: orderedIds,
+  });
+  if (error) throw error;
 }
 
 export async function updateTrackedItem(

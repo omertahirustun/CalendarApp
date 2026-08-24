@@ -52,7 +52,7 @@ export default function VerifyEmailScreen() {
       <View className="flex-1 justify-center px-6">
         <View className="items-center mb-8">
           <View className="w-20 h-20 rounded-3xl bg-primary-softer items-center justify-center mb-4">
-            <MailCheck size={40} color="#7C3AED" />
+            <MailCheck size={40} color="#2D26F0" />
           </View>
           <Text className="text-3xl font-bold text-gray-900 text-center">E-postanı doğrula</Text>
           <Text className="text-gray-500 mt-2 text-center px-4">

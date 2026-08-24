@@ -88,7 +88,7 @@ export default function ResetPasswordScreen() {
       >
         <View className="items-center mb-8">
           <View className="w-20 h-20 rounded-3xl bg-primary-softer items-center justify-center mb-4">
-            <KeyRound size={40} color="#7C3AED" />
+            <KeyRound size={40} color="#2D26F0" />
           </View>
           <Text className="text-3xl font-bold text-gray-900 text-center">Şifre sıfırla</Text>
           <Text className="text-gray-500 mt-2 text-center px-4">

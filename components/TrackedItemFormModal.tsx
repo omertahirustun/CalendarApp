@@ -25,7 +25,7 @@ export default function TrackedItemFormModal({
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [link, setLink] = useState("");
-  const [color, setColor] = useState<string>("#7C3AED");
+  const [color, setColor] = useState<string>("#2D26F0");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -41,7 +41,7 @@ export default function TrackedItemFormModal({
       setTitle("");
       setNote("");
       setLink("");
-      setColor("#7C3AED");
+      setColor("#2D26F0");
     }
   }, [visible, editing]);
 

@@ -21,7 +21,6 @@ import {
   formatFullDate,
   toISODateString,
 } from "../../lib/date";
-import { scheduleEventReminder } from "../../hooks/usePushNotifications";
 
 export default function CalendarScreen() {
   const { userId } = useAuth();
@@ -34,7 +33,7 @@ export default function CalendarScreen() {
   const [formVisible, setFormVisible] = useState(false);
   const [editing, setEditing] = useState<EventRow | null>(null);
 
-  // Takvim gun alti renkli noktalar
+  // Takvim gunleri -> etkinlik renkleri (gun numarasi daire rengi icin)
   const dots: DayDots = useMemo(() => {
     const map: DayDots = {};
     for (const ev of events) {
@@ -64,20 +63,13 @@ export default function CalendarScreen() {
     setFormVisible(true);
   }, []);
 
-  const confirmDelete = useCallback((ev: EventRow) => {
-    Alert.alert("Etkinliği Sil", `"${ev.title}" silinsin mi?`, [
-      { text: "Vazgeç", style: "cancel" },
-      {
-        text: "Sil",
-        style: "destructive",
-        onPress: () => {
-          deleteEvent(ev.id).catch((e) =>
-            Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.")
-          );
-        },
-      },
-    ]);
-  }, []);
+  // Silme onayi EventFormModal icinde sorulur; burada dogrudan silinir
+  const handleDelete = useCallback(() => {
+    if (!editing) return;
+    deleteEvent(editing.id).catch((e) =>
+      Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.")
+    );
+  }, [editing]);
 
   const handleSubmit = useCallback(
     async (input: EventInput) => {
@@ -85,11 +77,15 @@ export default function CalendarScreen() {
       if (editing) {
         await updateEvent(editing.id, input);
       } else {
-        await createEvent(userId, input);
-        await scheduleEventReminder(input.title, input.start_time);
+        const creatorName =
+          user?.fullName ||
+          user?.firstName ||
+          user?.primaryEmailAddress?.emailAddress ||
+          null;
+        await createEvent(userId, { ...input, created_by_name: creatorName });
       }
     },
-    [userId, editing]
+    [userId, editing, user]
   );
 
   return (
@@ -127,6 +123,7 @@ export default function CalendarScreen() {
               setSelectedDate(d);
               if (d.getMonth() !== monthDate.getMonth()) setMonthDate(d);
             }}
+            onMonthChange={setMonthDate}
             dots={dots}
           />
         </View>
@@ -157,8 +154,7 @@ export default function CalendarScreen() {
               <EventCard
                 key={ev.id}
                 event={ev}
-                onEdit={() => openEdit(ev)}
-                onDelete={() => confirmDelete(ev)}
+                onLongPress={() => openEdit(ev)}
               />
             ))
           )}
@@ -170,7 +166,7 @@ export default function CalendarScreen() {
         onPress={openCreate}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary shadow-lg items-center justify-center"
         style={{
-          shadowColor: "#7C3AED",
+          shadowColor: "#2D26F0",
           shadowOpacity: 0.4,
           shadowRadius: 8,
           elevation: 6,
@@ -183,6 +179,7 @@ export default function CalendarScreen() {
         visible={formVisible}
         onClose={() => setFormVisible(false)}
         onSubmit={handleSubmit}
+        onDelete={handleDelete}
         editing={editing}
         baseDate={selectedDate}
       />

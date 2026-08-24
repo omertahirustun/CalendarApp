@@ -1,8 +1,13 @@
 import { useEffect } from "react";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { useAuth } from "@clerk/clerk-expo";
 import { saveDeviceToken } from "../lib/api";
+
+// Expo Go (SDK 53+) Android'de uzak bildirimler kaldirildi; development build gerekir
+const IS_EXPO_GO =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -13,12 +18,19 @@ Notifications.setNotificationHandler({
   }),
 });
 
+function getEASProjectId(): string | undefined {
+  return (
+    (Constants?.expoConfig?.extra?.eas?.projectId as string | undefined) ??
+    (Constants?.easConfig?.projectId as string | undefined)
+  );
+}
+
 async function registerForPush(): Promise<string | null> {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("reminders", {
       name: "Hatırlatıcılar",
       importance: Notifications.AndroidImportance.HIGH,
-      lightColor: "#7C3AED",
+      lightColor: "#2D26F0",
     });
   }
 
@@ -30,11 +42,17 @@ async function registerForPush(): Promise<string | null> {
   }
   if (finalStatus !== "granted") return null;
 
+  // Uzak bildirim kaydi Expo Go Android'de mumkun degil; local izin/channel islemleri kalsin
+  if (Platform.OS === "android" && IS_EXPO_GO) {
+    console.warn(
+      "[bildirim] Uzak bildirimler Expo Go'da desteklenmiyor (SDK 53+). " +
+        "Push icin development build gerekli: https://docs.expo.dev/develop/development-builds/introduction/"
+    );
+    return null;
+  }
+
   try {
-    const Constants = require("expo-constants").default;
-    const projectId =
-      (Constants?.expoConfig?.extra?.eas?.projectId as string | undefined) ??
-      (Constants?.easConfig?.projectId as string | undefined);
+    const projectId = getEASProjectId();
     const token = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
     );
@@ -46,6 +64,7 @@ async function registerForPush(): Promise<string | null> {
 
 /**
  * Giris yapan kullanicinin push token'ini device_tokens tablosuna kaydeder.
+ * Hatirlatmalar sunucu tarafi Edge Function (send-event-reminders) ile gonderilir.
  */
 export function usePushNotifications(enabled: boolean) {
   const { userId } = useAuth();
@@ -56,9 +75,6 @@ export function usePushNotifications(enabled: boolean) {
 
     (async () => {
       try {
-        // Local hatirlatma izinlerini de bastan iste
-        await Notifications.requestPermissionsAsync();
-
         const token = await registerForPush();
         if (!token || cancelled) return;
 
@@ -72,22 +88,4 @@ export function usePushNotifications(enabled: boolean) {
       cancelled = true;
     };
   }, [enabled, userId]);
-}
-
-/** Event icin local hatirlatma planla (baslangictan 10 dk once) */
-export async function scheduleEventReminder(title: string, startTimeIso: string) {
-  try {
-    const triggerDate = new Date(new Date(startTimeIso).getTime() - 10 * 60 * 1000);
-    if (triggerDate.getTime() <= Date.now()) return;
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Yaklaşan etkinlik",
-        body: `"${title}" 10 dakika içinde başlıyor.`,
-        color: "#7C3AED",
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDate },
-    });
-  } catch {
-    // yoksay
-  }
 }
