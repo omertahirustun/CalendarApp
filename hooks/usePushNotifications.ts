@@ -25,7 +25,7 @@ function getEASProjectId(): string | undefined {
   );
 }
 
-async function registerForPush(): Promise<string | null> {
+export async function registerForPushNotifications(): Promise<string | null> {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("reminders", {
       name: "Hatırlatıcılar",
@@ -75,7 +75,7 @@ export function usePushNotifications(enabled: boolean) {
 
     (async () => {
       try {
-        const token = await registerForPush();
+        const token = await registerForPushNotifications();
         if (!token || cancelled) return;
 
         await saveDeviceToken(userId, token);

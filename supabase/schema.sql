@@ -123,8 +123,32 @@ as $$
   update tracked_items t
   set sort_order = u.ord - 1
   from unnest(p_ids) with ordinality as u(id, ord)
-  where t.id = u.id and t.user_id = p_user_id;
+  where t.id = u.id;
 $$;
+
+-- ============================================================
+-- v7 Migration: ortak (paylasilan) takvim
+-- Tum giris yapan kullanicilar tum etkinlikleri ve takip ogelerini
+-- gorur, olusturur, duzenler ve silebilir. user_id artik "ekleyen
+-- kisi" anlamina gelir; erisim kisitilamaz.
+-- ============================================================
+
+drop policy if exists "own events" on events;
+create policy "shared events" on events
+  for all
+  to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "own tracked_items" on tracked_items;
+create policy "shared tracked_items" on tracked_items
+  for all
+  to authenticated
+  using (true)
+  with check (true);
+
+-- device_tokens kisiye ozel kalir: her kullanici yalnizca kendi
+-- token'ini yazar; push gonderimi service role ile yapilir.
 
 -- send-event-reminders Edge Function'ini her dakika tetikleyen cron job.
 -- ONCELIK: pg_cron ve pg_net extension'lari aktif olmali:

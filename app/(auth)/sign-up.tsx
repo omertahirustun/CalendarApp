@@ -19,6 +19,7 @@ export default function SignUpScreen() {
   const { signUp, isLoaded } = useSignUp();
   const router = useRouter();
 
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,18 +27,25 @@ export default function SignUpScreen() {
 
   async function handleSignUp() {
     if (!isLoaded) return;
-    if (!email.trim() || !password) {
-      setError("E-posta ve şifre gerekli.");
+    if (!fullName.trim() || !email.trim() || !password) {
+      setError("Ad soyad, e-posta ve şifre gerekli.");
       return;
     }
     if (password.length < 8) {
       setError("Şifre en az 8 karakter olmalı.");
       return;
     }
+    const trimmed = fullName.trim();
+    const spaceIndex = trimmed.indexOf(" ");
+    const firstName = spaceIndex === -1 ? trimmed : trimmed.slice(0, spaceIndex);
+    const lastName =
+      spaceIndex === -1 ? undefined : trimmed.slice(spaceIndex + 1).trim();
     setLoading(true);
     setError(null);
     try {
       await signUp.create({
+        firstName,
+        lastName,
         emailAddress: email.trim(),
         password,
       });
@@ -73,6 +81,16 @@ export default function SignUpScreen() {
             <Text className="text-danger text-sm">{error}</Text>
           </View>
         )}
+
+        <Text className="text-gray-700 font-semibold mb-2">Ad Soyad</Text>
+        <TextInput
+          className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-base mb-4 text-gray-900"
+          placeholder="Adın Soyadın"
+          autoCapitalize="words"
+          value={fullName}
+          onChangeText={setFullName}
+          placeholderTextColor="#9CA3AF"
+        />
 
         <Text className="text-gray-700 font-semibold mb-2">E-posta</Text>
         <TextInput

@@ -3,12 +3,15 @@ import type { EventRow, EventCategory, TrackedItemRow, Status } from "./types";
 
 // ---------- Events ----------
 
-export async function fetchEvents(userId: string): Promise<EventRow[]> {
+/**
+ * Ortak takvim: tum giris yapan kullanicilar tum etkinlikleri gorur.
+ * user_id kolonu etkinligi EKLEYEN kisiyi gosterir (created_by_name ile birlikte).
+ */
+export async function fetchEvents(): Promise<EventRow[]> {
   const sb = getSupabase();
   const { data, error } = await sb
     .from("events")
     .select("*")
-    .eq("user_id", userId)
     .order("start_time", { ascending: true });
   if (error) throw error;
   return (data ?? []) as EventRow[];
@@ -56,12 +59,11 @@ export async function deleteEvent(id: string): Promise<void> {
 
 // ---------- Tracked items ----------
 
-export async function fetchTrackedItems(userId: string): Promise<TrackedItemRow[]> {
+export async function fetchTrackedItems(): Promise<TrackedItemRow[]> {
   const sb = getSupabase();
   const { data, error } = await sb
     .from("tracked_items")
     .select("*")
-    .eq("user_id", userId)
     .order("sort_order", { ascending: true, nullsFirst: false });
   if (error) throw error;
   return (data ?? []) as TrackedItemRow[];
@@ -74,6 +76,7 @@ export type TrackedItemInput = {
   color: string;
 };
 
+/** Ortak liste: herkes herkesin ogelerini gorur; user_id ekleyeni isaretler */
 export async function createTrackedItem(
   userId: string,
   input: TrackedItemInput
@@ -83,7 +86,6 @@ export async function createTrackedItem(
   const { data: maxRow } = await sb
     .from("tracked_items")
     .select("sort_order")
-    .eq("user_id", userId)
     .order("sort_order", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
@@ -146,5 +148,12 @@ export async function saveDeviceToken(userId: string, pushToken: string): Promis
     .maybeSingle();
   if (data) return;
   const { error } = await sb.from("device_tokens").insert({ user_id: userId, push_token: pushToken });
+  if (error) throw error;
+}
+
+/** Kullanicinin tum cihaz token'larini siler; Edge Function artik bu kullaniciya push gonderemez */
+export async function deleteDeviceTokens(userId: string): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb.from("device_tokens").delete().eq("user_id", userId);
   if (error) throw error;
 }

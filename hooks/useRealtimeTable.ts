@@ -5,7 +5,7 @@ interface Identifiable {
   id: string;
 }
 
-type Fetcher<T> = (userId: string) => Promise<T[]>;
+type Fetcher<T> = () => Promise<T[]>;
 
 /**
  * Bir tablo icin initial fetch + postgres_changes realtime subscription yonetir.
@@ -30,7 +30,7 @@ export function useRealtimeTable<T extends Identifiable>(
   const refetch = useCallback(async () => {
     if (!userId) return;
     try {
-      const rows = await fetcher(userId);
+      const rows = await fetcher();
       setItems(sort(rows));
       setError(null);
     } catch (e) {
@@ -72,7 +72,9 @@ export function useRealtimeTable<T extends Identifiable>(
           setItems((prev) => {
             let next = prev;
             if (payload.eventType === "INSERT") {
-              next = [payload.new as T, ...prev];
+              const row = payload.new as T;
+              // Refetch satiri zaten eklemisse (realtime ile yarıs), ikinci kopya ekleme
+              next = [row, ...prev.filter((it) => it.id !== row.id)];
             } else if (payload.eventType === "UPDATE") {
               next = prev.map((it) =>
                 it.id === (payload.new as T).id ? (payload.new as T) : it

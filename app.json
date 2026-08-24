@@ -41,6 +41,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9fd7ea6d-f629-422d-8cda-c05a3e0d8357"
+      }
+    },
+    "owner": "sezeryanpatates"
   }
 }

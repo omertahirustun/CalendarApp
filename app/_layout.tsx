@@ -1,5 +1,5 @@
 import "./global.css";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, View, ActivityIndicator } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
@@ -8,6 +8,7 @@ import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setClerkTokenGetter } from "../lib/supabase";
+import { getNotificationsEnabled } from "../lib/notificationPrefs";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 
 const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -36,14 +37,26 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  // Kalici bildirim tercihi; yuklenene kadar acik varsayilir (eski davranis)
+  const [notificationsOn, setNotificationsOn] = useState(true);
 
   // Supabase istekleri icin guncel Clerk JWT saglayicisini bagla
   useEffect(() => {
     setClerkTokenGetter(() => getToken({ template: "supabase" }));
   }, [getToken]);
 
-  // Push bildirim kaydi (giris yapan kullanici)
-  usePushNotifications(isSignedIn ? true : false);
+  useEffect(() => {
+    let cancelled = false;
+    getNotificationsEnabled().then((v) => {
+      if (!cancelled) setNotificationsOn(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Push bildirim kaydi (giris yapan + tercihi acik kullanici)
+  usePushNotifications(Boolean(isSignedIn) && notificationsOn);
 
   const inAuth = segments[0] === "(auth)";
 

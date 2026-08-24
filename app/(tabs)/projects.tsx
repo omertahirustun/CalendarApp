@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, View, Text, Pressable, TextInput, Alert } from "react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
+import { useFocusEffect } from "expo-router";
 import { Plus, FolderKanban, Search } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DragList, {
@@ -32,7 +33,14 @@ const DRAG_ACTIVE_STYLE = {
 export default function ProjectsScreen() {
   const { userId } = useAuth();
   const { user } = useUser();
-  const { items: tracked, loading, error } = useTrackedItemsRealtime(userId);
+  const { items: tracked, loading, error, refetch } = useTrackedItemsRealtime(userId);
+
+  // Sekmeye her donuste veriyi tazele; realtime gecikse/kesilse bile liste guncel kalir
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const [query, setQuery] = useState("");
   const [formVisible, setFormVisible] = useState(false);
@@ -69,24 +77,32 @@ export default function ProjectsScreen() {
   }, [ordered, query]);
 
   // Optimistic toggle — sadece status; sort_order'a dokunmaz, kart yerinde kalir
-  const toggleItem = useCallback((item: TrackedItemRow) => {
-    updateTrackedItem(item.id, {
-      status: item.status === "completed" ? "pending" : "completed",
-    }).catch((e) =>
-      Alert.alert("Hata", e instanceof Error ? e.message : "Güncellenemedi.")
-    );
-  }, []);
+  const toggleItem = useCallback(
+    (item: TrackedItemRow) => {
+      updateTrackedItem(item.id, {
+        status: item.status === "completed" ? "pending" : "completed",
+      })
+        .then(() => refetch())
+        .catch((e) =>
+          Alert.alert("Hata", e instanceof Error ? e.message : "Güncellenemedi.")
+        );
+    },
+    [refetch]
+  );
 
-  const confirmDelete = useCallback((item: TrackedItemRow) => {
-    Alert.alert("Kaydı Sil", `"${item.title}" silinsin mi?`, [
-      { text: "Vazgeç", style: "cancel" },
-      {
-        text: "Sil",
-        style: "destructive",
-        onPress: () => deleteTrackedItem(item.id).catch(() => {}),
-      },
-    ]);
-  }, []);
+  const confirmDelete = useCallback(
+    (item: TrackedItemRow) => {
+      Alert.alert("Kaydı Sil", `"${item.title}" silinsin mi?`, [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Sil",
+          style: "destructive",
+          onPress: () => deleteTrackedItem(item.id).finally(() => refetch()),
+        },
+      ]);
+    },
+    [refetch]
+  );
 
   async function handleSubmit(input: {
     title: string;
@@ -100,6 +116,7 @@ export default function ProjectsScreen() {
     } else {
       await createTrackedItem(userId, input);
     }
+    refetch();
   }
 
   // Arama varken (filtreli/kismi liste) suruklemeyi kapat
@@ -166,7 +183,10 @@ export default function ProjectsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
-      <Header name={user?.firstName} title="Projeler / Takip Listesi" />
+      <Header
+        name={user?.fullName || user?.firstName}
+        title="Projeler / Takip Listesi"
+      />
 
       <View className="px-4 pb-2">
         {/* Arama */}

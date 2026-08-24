@@ -11,7 +11,6 @@ const EXPO_CHUNK_SIZE = 100; // Expo Push API tek istekte en fazla 100 bildirim 
 
 interface ReminderEvent {
   id: string;
-  user_id: string;
   title: string;
 }
 
@@ -56,7 +55,7 @@ Deno.serve(async (_req) => {
 
     const { data: events, error } = await sb
       .from("events")
-      .select("id, user_id, title")
+      .select("id, title")
       .gte("start_time", windowStart)
       .lte("start_time", windowEnd)
       .is("reminder_sent_at", null);
@@ -72,11 +71,10 @@ Deno.serve(async (_req) => {
 
     for (const ev of events as ReminderEvent[]) {
       try {
-        // Kullanicinin tum cihaz token'lari (birden fazla cihaz olabilir)
+        // Ortak takvim: etkinligin hatirlatmasi TUM kayitli cihazlara gider
         const { data: tokenRows, error: tokenErr } = await sb
           .from("device_tokens")
-          .select("push_token")
-          .eq("user_id", ev.user_id);
+          .select("push_token");
         if (tokenErr) throw tokenErr;
 
         const pushTokens = (tokenRows ?? []).map((t) => t.push_token);

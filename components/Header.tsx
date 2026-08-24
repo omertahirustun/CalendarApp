@@ -1,14 +1,14 @@
 import { View, Text, Pressable } from "react-native";
-import { Bell } from "lucide-react-native";
+import { Settings } from "lucide-react-native";
 import { MONTHS_TR } from "../lib/date";
 
 interface HeaderProps {
   name?: string | null;
-  onBellPress?: () => void;
+  onSettingsPress?: () => void;
   title?: string;
 }
 
-export default function Header({ name, onBellPress, title }: HeaderProps) {
+export default function Header({ name, onSettingsPress, title }: HeaderProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Günaydın" : hour < 18 ? "İyi günler" : "İyi akşamlar";
   const todayLabel = `${new Date().getDate()} ${MONTHS_TR[new Date().getMonth()]} ${new Date().getFullYear()}`;
@@ -21,12 +21,12 @@ export default function Header({ name, onBellPress, title }: HeaderProps) {
           {title ?? `${greeting}, ${name ?? "Misafir"}`}
         </Text>
       </View>
-      {onBellPress && (
+      {onSettingsPress && (
         <Pressable
-          onPress={onBellPress}
+          onPress={onSettingsPress}
           className="w-11 h-11 rounded-full bg-white shadow-sm items-center justify-center border border-gray-100"
         >
-          <Bell size={22} color="#6B7280" />
+          <Settings size={22} color="#6B7280" />
         </Pressable>
       )}
     </View>

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, Alert } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Plus, CalendarX2 } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,7 +26,14 @@ export default function CalendarScreen() {
   const { userId } = useAuth();
   const { user } = useUser();
   const router = useRouter();
-  const { items: events, loading, error } = useEventsRealtime(userId);
+  const { items: events, loading, error, refetch } = useEventsRealtime(userId);
+
+  // Sekmeye her donuste veriyi tazele; realtime gecikse/kesilse bile liste guncel kalir
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -66,10 +73,12 @@ export default function CalendarScreen() {
   // Silme onayi EventFormModal icinde sorulur; burada dogrudan silinir
   const handleDelete = useCallback(() => {
     if (!editing) return;
-    deleteEvent(editing.id).catch((e) =>
-      Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.")
-    );
-  }, [editing]);
+    deleteEvent(editing.id)
+      .catch((e) =>
+        Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.")
+      )
+      .finally(() => refetch());
+  }, [editing, refetch]);
 
   const handleSubmit = useCallback(
     async (input: EventInput) => {
@@ -77,22 +86,19 @@ export default function CalendarScreen() {
       if (editing) {
         await updateEvent(editing.id, input);
       } else {
-        const creatorName =
-          user?.fullName ||
-          user?.firstName ||
-          user?.primaryEmailAddress?.emailAddress ||
-          null;
+        const creatorName = user?.fullName || user?.firstName || "Kullanıcı";
         await createEvent(userId, { ...input, created_by_name: creatorName });
       }
+      refetch();
     },
-    [userId, editing, user]
+    [userId, editing, user, refetch]
   );
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
       <Header
-        name={user?.firstName}
-        onBellPress={() => router.push("/(tabs)/agenda")}
+        name={user?.fullName || user?.firstName}
+        onSettingsPress={() => router.push("/settings")}
       />
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
