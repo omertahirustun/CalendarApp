@@ -1,5 +1,10 @@
 import { Tabs } from "expo-router";
-import { Platform, View, Text, Pressable } from "react-native";
+import {
+  Platform,
+  View,
+  Pressable
+} from "react-native";
+import { Text } from "../../components/AppText";
 import type { ErrorBoundaryProps } from "expo-router";
 import { CalendarDays, Clock3, FolderKanban } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

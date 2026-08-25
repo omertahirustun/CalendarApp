@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "630187581483",
+    "project_id": "calendarapp-c10a8",
+    "storage_bucket": "calendarapp-c10a8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:630187581483:android:2ca2be31f71757deb68a6e",
+        "android_client_info": {
+          "package_name": "com.sezeryanpatates.calendarapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBI-xgP80GZ-iG4giVHMgDINCT6BYM4-_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

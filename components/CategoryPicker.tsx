@@ -1,4 +1,8 @@
-import { View, Pressable, Text } from "react-native";
+import {
+  View,
+  Pressable
+} from "react-native";
+import { Text } from "./AppText";
 import { EVENT_CATEGORY_META, type EventCategory } from "../lib/types";
 
 interface CategoryPickerProps {

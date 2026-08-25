@@ -1,12 +1,12 @@
 import {
   Modal,
   View,
-  Text,
   Pressable,
   ScrollView,
   KeyboardAvoidingView,
-  Platform,
+  Platform
 } from "react-native";
+import { Text } from "./AppText";
 import { X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

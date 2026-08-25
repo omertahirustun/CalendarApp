@@ -1,5 +1,10 @@
 import { memo } from "react";
-import { View, Text, Pressable, Linking } from "react-native";
+import {
+  View,
+  Pressable,
+  Linking
+} from "react-native";
+import { Text } from "./AppText";
 import { Trash2, Link2 } from "lucide-react-native";
 import CheckboxCircle from "./CheckboxCircle";
 import { CARD_RIPPLE, delayedPress } from "../lib/pressDelay";

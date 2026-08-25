@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
-import { ScrollView, View, Text } from "react-native";
+import {
+  ScrollView,
+  View
+} from "react-native";
+import { Text } from "./AppText";
 
 const ITEM_H = 40;
 const VISIBLE_ITEMS = 5;

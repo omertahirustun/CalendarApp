@@ -1,5 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, Pressable, ScrollView, Alert } from "react-native";
+import {
+  View,
+  Pressable,
+  ScrollView,
+  Alert
+} from "react-native";
+import { Text } from "../../components/AppText";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Plus, CalendarX2 } from "lucide-react-native";

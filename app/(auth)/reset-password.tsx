@@ -1,15 +1,14 @@
 import { useState } from "react";
 import {
   View,
-  Text,
-  TextInput,
   Pressable,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
-  Alert,
+  Alert
 } from "react-native";
+import { Text, TextInput } from "../../components/AppText";
 import { Link, useRouter } from "expo-router";
 import { useSignIn, useClerk } from "@clerk/clerk-expo";
 import { KeyRound } from "lucide-react-native";
@@ -139,6 +138,9 @@ export default function ResetPasswordScreen() {
               className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-base mb-4 text-gray-900"
               placeholder="En az 8 karakter"
               secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
               value={password}
               onChangeText={setPassword}
               placeholderTextColor="#9CA3AF"

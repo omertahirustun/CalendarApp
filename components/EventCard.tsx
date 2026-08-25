@@ -1,4 +1,8 @@
-import { View, Text, Pressable } from "react-native";
+import {
+  View,
+  Pressable
+} from "react-native";
+import { Text } from "./AppText";
 import { User } from "lucide-react-native";
 import { formatTime } from "../lib/date";
 import { CARD_RIPPLE, delayedPress } from "../lib/pressDelay";

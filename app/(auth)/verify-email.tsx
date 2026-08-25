@@ -1,14 +1,14 @@
 import { useRef, useState } from "react";
 import {
   View,
-  Text,
-  TextInput,
   Pressable,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
+  Alert
 } from "react-native";
+import { Text, TextInput } from "../../components/AppText";
+import type { TextInput as TextInputInstance } from "react-native";
 import { useRouter } from "expo-router";
 import { useSignUp, useClerk } from "@clerk/clerk-expo";
 import { MailCheck } from "lucide-react-native";
@@ -18,7 +18,7 @@ export default function VerifyEmailScreen() {
   const { signUp, isLoaded } = useSignUp();
   const { setActive } = useClerk();
   const router = useRouter();
-  const codeRef = useRef<TextInput>(null);
+  const codeRef = useRef<TextInputInstance>(null);
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { View, Text, Pressable } from "react-native";
+import {
+  View,
+  Pressable
+} from "react-native";
+import { Text } from "./AppText";
 import PagerView from "react-native-pager-view";
 import type { NativeSyntheticEvent } from "react-native";
 import { WEEKDAYS_TR, addMonths, getMonthMatrix, isSameDay, isToday, isSameMonth } from "../lib/date";

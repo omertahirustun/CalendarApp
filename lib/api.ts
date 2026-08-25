@@ -105,19 +105,6 @@ export async function createTrackedItem(
   return data as TrackedItemRow;
 }
 
-/** Surukle-birak sonrasi yeni sirayi TEK istekte kaydeder (Postgres rpc) */
-export async function reorderTrackedItems(
-  userId: string,
-  orderedIds: string[]
-): Promise<void> {
-  const sb = getSupabase();
-  const { error } = await sb.rpc("reorder_tracked_items", {
-    p_user_id: userId,
-    p_ids: orderedIds,
-  });
-  if (error) throw error;
-}
-
 export async function updateTrackedItem(
   id: string,
   patch: Partial<Pick<TrackedItemRow, "title" | "note" | "link" | "color" | "status">>

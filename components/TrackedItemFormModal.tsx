@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { TextInput, View, Text } from "react-native";
+import {
+  View
+} from "react-native";
+import { Text, TextInput } from "./AppText";
 import FormModal, { Field, inputClass } from "./FormModal";
 import ColorPicker from "./ColorPicker";
 import type { TrackedItemRow } from "../lib/types";

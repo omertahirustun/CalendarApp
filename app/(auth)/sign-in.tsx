@@ -1,19 +1,21 @@
 import { useState } from "react";
 import {
   View,
-  Text,
-  TextInput,
   Pressable,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from "react-native";
+import { Text, TextInput } from "../../components/AppText";
 import { Link, useRouter } from "expo-router";
 import { useSignIn } from "@clerk/clerk-expo";
 import { CalendarDays } from "lucide-react-native";
 import { friendlyClerkError } from "../../lib/clerk";
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 export default function SignInScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -53,18 +55,24 @@ export default function SignInScreen() {
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-white"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <ScrollView
         className="flex-1"
-        contentContainerClassName="flex-grow justify-center px-6 py-10"
+        contentContainerStyle={{
+          minHeight: SCREEN_HEIGHT * 0.85,
+          paddingHorizontal: 24,
+          paddingTop: 60,
+          paddingBottom: 40,
+        }}
         keyboardShouldPersistTaps="handled"
       >
-        <View className="items-center mb-8">
+        <View style={{ alignItems: "center", marginBottom: 24 }}>
           <View className="w-20 h-20 rounded-3xl bg-primary items-center justify-center mb-4">
             <CalendarDays size={40} color="#fff" />
           </View>
-          <Text className="text-3xl font-bold text-gray-900">Tekrar hoş geldiniz</Text>
+          <Text className="text-3xl font-bold text-gray-900">Hoş geldiniz</Text>
           <Text className="text-gray-500 mt-2">Hesabınıza giriş yapın</Text>
         </View>
 
@@ -90,13 +98,21 @@ export default function SignInScreen() {
           className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-base mb-2 text-gray-900"
           placeholder="••••••••"
           secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
           value={password}
           onChangeText={setPassword}
           placeholderTextColor="#9CA3AF"
         />
 
-        <Pressable onPress={() => router.push("/(auth)/reset-password")} className="self-end py-2">
-          <Text className="text-primary font-semibold text-sm">Şifremi unuttum</Text>
+        <Pressable
+          onPress={() => router.push("/(auth)/reset-password")}
+          className="self-end py-2"
+        >
+          <Text className="text-primary font-semibold text-sm">
+            Şifremi unuttum
+          </Text>
         </Pressable>
 
         <Pressable

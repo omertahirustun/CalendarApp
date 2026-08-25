@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, View, Text, Pressable, TextInput, Alert } from "react-native";
+import {
+  FlatList,
+  View,
+  Pressable,
+  Alert
+} from "react-native";
+import { Text, TextInput } from "../../components/AppText";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useFocusEffect } from "expo-router";
 import { Plus, FolderKanban, Search } from "lucide-react-native";

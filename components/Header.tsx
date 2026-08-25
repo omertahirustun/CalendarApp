@@ -1,4 +1,8 @@
-import { View, Text, Pressable } from "react-native";
+import {
+  View,
+  Pressable
+} from "react-native";
+import { Text } from "./AppText";
 import { Settings } from "lucide-react-native";
 import { MONTHS_TR } from "../lib/date";
 

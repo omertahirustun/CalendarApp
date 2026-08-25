@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { TextInput, View, Text, Pressable, Alert } from "react-native";
+import {
+  View,
+  Pressable,
+  Alert
+} from "react-native";
+import { Text, TextInput } from "./AppText";
 import { Trash2, ChevronLeft, ChevronRight, Clock } from "lucide-react-native";
 import FormModal, { Field, inputClass } from "./FormModal";
 import ColorPicker from "./ColorPicker";

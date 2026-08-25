@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Text, FlatList, Alert } from "react-native";
+import {
+  View,
+  FlatList,
+  Alert
+} from "react-native";
+import { Text } from "../../components/AppText";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
