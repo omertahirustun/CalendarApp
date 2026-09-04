@@ -140,3 +140,48 @@ export function formatAgendaDayLabel(d: Date): string {
 export function isSameMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
+
+/** Kucukten buyuge iki tarih sirala */
+export function sortRange(a: Date, b: Date): [Date, Date] {
+  return a.getTime() <= b.getTime() ? [startOfDay(a), startOfDay(b)] : [startOfDay(b), startOfDay(a)];
+}
+
+/** Bir tarihin verilen araligin icinde olup olmadigini kontrol et (baslangic/bitis dahil) */
+export function isInRange(date: Date, rangeStart: Date, rangeEnd: Date): boolean {
+  const t = startOfDay(date).getTime();
+  const s = startOfDay(rangeStart).getTime();
+  const e = startOfDay(rangeEnd).getTime();
+  return t >= s && t <= e;
+}
+
+/** Ay matrisindeki tum gunler icin aralik position'unu hesapla: "start" | "end" | "middle" | "single" | null */
+export function getRangePosition(
+  date: Date,
+  rangeStart: Date | null,
+  rangeEnd: Date | null,
+): "start" | "end" | "middle" | "single" | null {
+  if (!rangeStart || !rangeEnd) return null;
+  const [lo, hi] = sortRange(rangeStart, rangeEnd);
+  if (!isInRange(date, lo, hi)) return null;
+  if (isSameDay(date, lo) && isSameDay(date, hi)) return "single";
+  if (isSameDay(date, lo)) return "start";
+  if (isSameDay(date, hi)) return "end";
+  return "middle";
+}
+
+/** Iki tarih arasindaki gun sayisi (baslangic ve bitis dahil) */
+export function daysBetween(a: Date, b: Date): number {
+  const [lo, hi] = sortRange(a, b);
+  return Math.round((hi.getTime() - lo.getTime()) / 86400000) + 1;
+}
+
+/** ISO string formatinda aralik baslik */
+export function formatRangeLabel(start: Date, end: Date): string {
+  const [lo, hi] = sortRange(start, end);
+  const sameMonth =
+    lo.getFullYear() === hi.getFullYear() && lo.getMonth() === hi.getMonth();
+  if (sameMonth) {
+    return `${lo.getDate()} – ${hi.getDate()} ${MONTHS_TR[lo.getMonth()]} ${lo.getFullYear()}`;
+  }
+  return `${lo.getDate()} ${MONTHS_TR[lo.getMonth()]} – ${hi.getDate()} ${MONTHS_TR[hi.getMonth()]} ${hi.getFullYear()}`;
+}
