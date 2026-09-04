@@ -1,18 +1,17 @@
 // send-event-reminders — her dakika cron ile tetiklenir (pg_cron + pg_net).
-// Hatirlatilmamis, gelecekteki etkinlikleri bulur; baslamasina <=10 dakika
-// kalanlari tum kayitli cihaz token'larina gonderir.
+// Hatirlatilmamis, gelecekteki etkinlikleri bulur:
+//   - 10 dakika kalanlara "10 dakika_once" bildirimi
+//   - 1 saat kalanlara "1_once" bildirimi
 //
-// Guvenlik: gonderim tamamlanamazsa (Expo HTTP hatasi) etkinlik ISARETLENMEZ;
-// bir sonraki tick'te tekrar denenir. Etkinlik baslangicini gecmisse ikinci bir
-// sorguyla "iskarta" isaretlenir boylece tablo sonsuza dek taranmaz.
+// Her iki bildirim turu ayri kolonlarla isaretlenir, boylece ayni etkinlige
+// birden fazla farkli bildirim gonderilebilir.
 //
 // SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY Supabase Edge Functions tarafindan
 // otomatik saglanir; service role key RLS'i bypass eder, ASLA client'a koymayin.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
-const EXPO_CHUNK_SIZE = 100; // Expo Push API tek istekte en fazla 100 bildirim kabul eder
-const LEAD_MINUTES = 10; // kalan sure <= bu deger oldugunda bildirim gonderilir
+const EXPO_CHUNK_SIZE = 100;
 
 interface ReminderEvent {
   id: string;
@@ -41,6 +40,53 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+async function sendPushBatch(
+  sb: ReturnType<typeof createClient>,
+  pushTokens: string[],
+  messages: PushMessage[]
+): Promise<{ sent: number; invalid: string[] }> {
+  const invalidTokens: string[] = [];
+  let sentCount = 0;
+  let httpFailed = false;
+
+  for (const part of chunk(messages, EXPO_CHUNK_SIZE)) {
+    const res = await fetch(EXPO_PUSH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(part),
+    });
+
+    if (!res.ok) {
+      console.error(`[expo] HTTP ${res.status}:`, await res.text());
+      httpFailed = true;
+      continue;
+    }
+
+    const json = await res.json();
+    const tickets: PushTicket[] | undefined = json?.data;
+    if (!Array.isArray(tickets)) {
+      console.error("[expo] beklenmeyen yanit:", JSON.stringify(json).slice(0, 300));
+      httpFailed = true;
+      continue;
+    }
+
+    tickets.forEach((ticket, i) => {
+      const token = part[i]?.to;
+      if (ticket.status === "ok") {
+        sentCount++;
+      } else if (token && ticket.details?.error === "DeviceNotRegistered") {
+        invalidTokens.push(token);
+      }
+    });
+  }
+
+  if (invalidTokens.length > 0) {
+    await sb.from("device_tokens").delete().in("push_token", invalidTokens);
+  }
+
+  return { sent: sentCount, invalid: invalidTokens };
+}
+
 Deno.serve(async (_req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -49,151 +95,103 @@ Deno.serve(async (_req) => {
     return Response.json({ error: "Missing Supabase env vars" }, { status: 500 });
   }
 
-  // Service role key: RLS bypass, admin yetkisi
   const sb = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
 
   try {
     const now = Date.now();
+    const nowISO = new Date(now).toISOString();
 
-    // Gonderilecek cihaz token'lari — dongunun disinda TEK SEFERDE cekilir (N+1 yok)
     const { data: tokenRows, error: tokenErr } = await sb
       .from("device_tokens")
       .select("push_token");
     if (tokenErr) throw tokenErr;
     const pushTokens = (tokenRows ?? []).map((t) => t.push_token as string);
 
-    let sentCount = 0;
-    let removedTokens = 0;
-    let processedEvents = 0;
+    if (pushTokens.length === 0) {
+      return Response.json({ ok: true, sent: 0 });
+    }
 
-    if (pushTokens.length > 0) {
-      // Hatirlatilmamis VE gelecekteki tum etkinlikler; zamanı gelenler asagida elenir
-      const { data: events, error } = await sb
-        .from("events")
-        .select("id, title, start_time")
-        .gte("start_time", new Date(now).toISOString())
-        .is("reminder_sent_at", null)
-        .order("start_time", { ascending: true })
-        .limit(200);
-      if (error) throw error;
+    // 10 dakika ve 1 saat icinde baslayacak, henuz isaretlenmemis etkinlikler
+    const { data: events, error } = await sb
+      .from("events")
+      .select("id, title, start_time, reminder_1h_sent_at, reminder_10m_sent_at")
+      .gte("start_time", nowISO)
+      .or("reminder_10m_sent_at.is.null,reminder_1h_sent_at.is.null")
+      .order("start_time", { ascending: true })
+      .limit(200);
+    if (error) throw error;
 
-      for (const ev of (events ?? []) as ReminderEvent[]) {
-        try {
-          const minsLeft = Math.ceil(
-            (new Date(ev.start_time).getTime() - now) / 60000
-          );
-          // Henuz vakti gelmedi; isaretleme ki bir sonraki tick'te tekrar degerlendirilsin
-          if (minsLeft > LEAD_MINUTES) continue;
-          processedEvents++;
+    let totalSent = 0;
 
-          const body =
-            minsLeft >= 1
-              ? `"${ev.title}" ${minsLeft} dakika içinde başlıyor.`
-              : `"${ev.title}" şu anda başlıyor.`;
+    for (const ev of (events ?? []) as ReminderEvent & {
+      reminder_1h_sent_at: string | null;
+      reminder_10m_sent_at: string | null;
+    }) {
+      try {
+        const minsLeft = Math.ceil(
+          (new Date(ev.start_time).getTime() - now) / 60000
+        );
 
+        // 10 dakika hatirlatmasi
+        if (minsLeft <= 10 && minsLeft > 0 && !ev.reminder_10m_sent_at) {
+          const body = `"${ev.title}" ${minsLeft} dakika icinde basliyor.`;
           const messages: PushMessage[] = pushTokens.map((to) => ({
             to,
-            title: "Yaklaşan etkinlik",
+            title: "Yaklasan etkinlik",
             body,
             sound: "default",
             data: { eventId: ev.id },
           }));
 
-          const invalidTokens: string[] = [];
-          let sentAny = false;
-          let httpFailed = false;
+          const { sent } = await sendPushBatch(sb, pushTokens, messages);
+          totalSent += sent;
 
-          for (const part of chunk(messages, EXPO_CHUNK_SIZE)) {
-            const res = await fetch(EXPO_PUSH_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(part),
-            });
-
-            if (!res.ok) {
-              console.error(`[expo] HTTP ${res.status}:`, await res.text());
-              httpFailed = true;
-              continue;
-            }
-
-            const json = await res.json();
-            const tickets: PushTicket[] | undefined = json?.data;
-            if (!Array.isArray(tickets)) {
-              console.error("[expo] beklenmeyen yanit formati:", JSON.stringify(json).slice(0, 300));
-              httpFailed = true;
-              continue;
-            }
-
-            // Ticket'lar gonderim sirasiyla doner
-            tickets.forEach((ticket, i) => {
-              const token = part[i]?.to;
-              if (ticket.status === "ok") {
-                sentCount++;
-                sentAny = true;
-              } else if (token && ticket.details?.error === "DeviceNotRegistered") {
-                invalidTokens.push(token);
-              } else {
-                console.error(
-                  `[expo] ticket hatasi (${token}): ${ticket.message}`,
-                  ticket.details ?? ""
-                );
-              }
-            });
-          }
-
-          // Tamamen basarisizsa ISARETLEME — bir sonraki dakika tekrar denenir.
-          // Etkinlik baslayana kadar deneme devam eder; basladiktan sonra asagidaki
-          // temizlik sorgusu isaretleyerek donguden cikarir.
-          if (httpFailed && !sentAny) {
-            console.error(`[event ${ev.id}] Expo istegi basarisiz, sonraki tick'te tekrar denenecek`);
-            continue;
-          }
-
-          if (invalidTokens.length > 0) {
-            const { error: delErr } = await sb
-              .from("device_tokens")
-              .delete()
-              .in("push_token", invalidTokens);
-            if (delErr) {
-              console.error("[db] ölü token silinemedi:", delErr.message);
-            } else {
-              removedTokens += invalidTokens.length;
-            }
-          }
-
-          // Ayni etkinlige iki kez bildirim gitmesin diye isaretle
           const { error: markErr } = await sb
             .from("events")
-            .update({ reminder_sent_at: new Date().toISOString() })
+            .update({ reminder_10m_sent_at: nowISO })
             .eq("id", ev.id);
           if (markErr) throw markErr;
-        } catch (evErr) {
-          // Bir event'teki hata digerlerinin islenmesini engellemesin
-          console.error(`[event ${ev.id}] islenemedi:`, evErr);
         }
+
+        // 1 saat hatirlatmasi
+        if (minsLeft <= 60 && minsLeft > 10 && !ev.reminder_1h_sent_at) {
+          const body = `"${ev.title}" 1 saat icinde basliyor.`;
+          const messages: PushMessage[] = pushTokens.map((to) => ({
+            to,
+            title: "Yaklasan etkinlik",
+            body,
+            sound: "default",
+            data: { eventId: ev.id },
+          }));
+
+          const { sent } = await sendPushBatch(sb, pushTokens, messages);
+          totalSent += sent;
+
+          const { error: markErr } = await sb
+            .from("events")
+            .update({ reminder_1h_sent_at: nowISO })
+            .eq("id", ev.id);
+          if (markErr) throw markErr;
+        }
+      } catch (evErr) {
+        console.error(`[event ${ev.id}] islenemedi:`, evErr);
       }
     }
 
     // Temizlik: baslangici gecmis ama hala isaretsiz etkinlikleri kapat
-    // (gonderim hic basarili olamadiysa dahi sonsuza dek taranmasinlar)
     const { error: sweepErr } = await sb
       .from("events")
-      .update({ reminder_sent_at: new Date().toISOString() })
-      .lt("start_time", new Date().toISOString())
-      .is("reminder_sent_at", null);
+      .update({ reminder_10m_sent_at: nowISO, reminder_1h_sent_at: nowISO })
+      .lt("start_time", nowISO)
+      .or("reminder_10m_sent_at.is.null,reminder_1h_sent_at.is.null");
     if (sweepErr) throw sweepErr;
 
     console.log(
-      `[send-event-reminders] ${processedEvents} event icin tetiklendi, ${sentCount} bildirim gonderildi, ${removedTokens} ölü token silindi.`
+      `[send-event-reminders] ${totalSent} bildirim gonderildi.`
     );
-    return Response.json({
-      ok: true,
-      processedEvents,
-      sent: sentCount,
-      removedTokens,
-    });
+    return Response.json({ ok: true, sent: totalSent });
   } catch (err) {
     console.error("[send-event-reminders] kritik hata:", err);
     return Response.json({ error: String(err) }, { status: 500 });

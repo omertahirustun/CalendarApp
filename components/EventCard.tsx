@@ -57,7 +57,7 @@ export default function EventCard({ event, onPress }: EventCardProps) {
 
             {/* Baslik + ekleyen kisi ayni satirda */}
             <View className="flex-row items-center justify-between">
-              <Text className="text-gray-900 font-bold text-base flex-1" numberOfLines={1}>
+              <Text className="text-gray-900 font-bold text-base flex-shrink" numberOfLines={1}>
                 {event.title}
               </Text>
 

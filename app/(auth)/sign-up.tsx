@@ -70,12 +70,12 @@ export default function SignUpScreen() {
         contentContainerStyle={{ minHeight: SCREEN_HEIGHT * 0.85, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ alignItems: "center", marginBottom: 24 }}>
+        <View style={{ alignItems: "center", marginBottom: 16 }}>
           <View className="w-20 h-20 rounded-3xl bg-primary items-center justify-center mb-4">
             <CalendarDays size={40} color="#fff" />
           </View>
           <Text className="text-3xl font-bold text-gray-900">Hesap oluştur</Text>
-          <Text className="text-gray-500 mt-2">E-posta ile ücretsiz kaydolun</Text>
+          <Text className="text-gray-500 mt-1 text-center" style={{ alignSelf: "stretch" }}>E-posta ile ücretsiz kaydolun</Text>
         </View>
 
         {error && (

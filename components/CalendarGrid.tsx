@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
-  Pressable
+  Pressable,
+  Platform,
 } from "react-native";
 import { Text } from "./AppText";
 import PagerView from "react-native-pager-view";
-import type { NativeSyntheticEvent } from "react-native";
 import { WEEKDAYS_TR, addMonths, getMonthMatrix, isSameDay, isToday, isSameMonth } from "../lib/date";
 
 export interface DayDots {
@@ -96,7 +96,7 @@ export default function CalendarGrid({
   onMonthChange,
   dots,
 }: CalendarGridProps) {
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<any>(null);
 
   // [onceki ay, mevcut ay, sonraki ay]
   const pages = useMemo(
@@ -105,7 +105,7 @@ export default function CalendarGrid({
   );
 
   const handlePageSelect = useCallback(
-    (e: NativeSyntheticEvent<{ position: number }>) => {
+    (e: { nativeEvent: { position: number } }) => {
       const pos = e.nativeEvent.position;
       if (pos === 1) return;
       onMonthChange?.(pages[pos]);
@@ -128,23 +128,34 @@ export default function CalendarGrid({
         ))}
       </View>
 
-      <PagerView
-        ref={pagerRef}
-        style={{ height: PAGE_HEIGHT }}
-        initialPage={1}
-        onPageSelected={handlePageSelect}
-      >
-        {pages.map((month) => (
-          <View key={`${month.getFullYear()}-${month.getMonth()}`}>
-            <MonthGrid
-              month={month}
-              selectedDate={selectedDate}
-              onSelectDay={onSelectDay}
-              dots={dots}
-            />
-          </View>
-        ))}
-      </PagerView>
+      {Platform.OS === "web" ? (
+        <View style={{ height: PAGE_HEIGHT }}>
+          <MonthGrid
+            month={monthDate}
+            selectedDate={selectedDate}
+            onSelectDay={onSelectDay}
+            dots={dots}
+          />
+        </View>
+      ) : (
+        <PagerView
+          ref={pagerRef}
+          style={{ height: PAGE_HEIGHT }}
+          initialPage={1}
+          onPageSelected={handlePageSelect}
+        >
+          {pages.map((month) => (
+            <View key={`${month.getFullYear()}-${month.getMonth()}`}>
+              <MonthGrid
+                month={month}
+                selectedDate={selectedDate}
+                onSelectDay={onSelectDay}
+                dots={dots}
+              />
+            </View>
+          ))}
+        </PagerView>
+      )}
     </View>
   );
 }

@@ -147,8 +147,8 @@ export default function CalendarScreen() {
               {isToday(selectedDate)
                 ? "Bugün"
                 : formatFullDate(selectedDate)}
+              <Text className="text-gray-500 text-sm font-normal">{"  "}{dayEvents.length} etkinlik</Text>
             </Text>
-            <Text className="text-gray-500 text-sm">{dayEvents.length} etkinlik</Text>
           </View>
 
           {loading ? (

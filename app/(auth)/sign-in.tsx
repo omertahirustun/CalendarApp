@@ -68,12 +68,12 @@ export default function SignInScreen() {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ alignItems: "center", marginBottom: 24 }}>
+        <View style={{ alignItems: "center", marginBottom: 16 }}>
           <View className="w-20 h-20 rounded-3xl bg-primary items-center justify-center mb-4">
             <CalendarDays size={40} color="#fff" />
           </View>
-          <Text className="text-3xl font-bold text-gray-900">Hoş geldiniz</Text>
-          <Text className="text-gray-500 mt-2">Hesabınıza giriş yapın</Text>
+          <Text className="text-3xl font-bold text-gray-900 text-center">Hoş geldiniz</Text>
+          <Text className="text-gray-500 mt-1 text-center" style={{ alignSelf: "stretch" }}>Hesabınıza giriş yapın</Text>
         </View>
 
         {error && (

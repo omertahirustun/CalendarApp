@@ -83,7 +83,7 @@ export default function TrackedItemFormModal({
       <Field label="Başlık">
         <TextInput
           className={inputClass}
-          placeholder="Örn. React Native kursu"
+          placeholder=""
           value={title}
           onChangeText={setTitle}
           placeholderTextColor="#9CA3AF"

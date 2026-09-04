@@ -63,7 +63,11 @@ function TrackedItemCardBase({
             ) : null}
             {item.link ? (
               <Pressable
-                onPress={() => Linking.openURL(item.link!)}
+                onPress={() => {
+                  const url = item.link!;
+                  const fullUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+                  Linking.openURL(fullUrl);
+                }}
                 className="flex-row items-center gap-1 mt-1"
               >
                 <Link2 size={12} color="#2D26F0" />

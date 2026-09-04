@@ -83,8 +83,10 @@ exception when duplicate_object then null; end $$;
 -- v3 Migration: sunucu tarafi push hatirlatmalari
 -- ============================================================
 
--- Push hatirlatma takibi: ayni etkinlige iki kez bildirim gitmesin
+-- Push hatirlatma takibi: ayni etkinlige birden fazla bildirim gitmesin
 alter table events add column if not exists reminder_sent_at timestamptz;
+alter table events add column if not exists reminder_1h_sent_at timestamptz;
+alter table events add column if not exists reminder_10m_sent_at timestamptz;
 
 -- ============================================================
 -- v4 Migration: etkinlik kategorileri
@@ -169,18 +171,27 @@ create unique index if not exists device_tokens_user_push_unique
 create index if not exists idx_events_start_time on events (start_time);
 create index if not exists idx_device_tokens_user on device_tokens (user_id);
 
--- send-event-reminders Edge Function'ini her dakika tetikleyen cron job.
--- ONCELIK: pg_cron ve pg_net extension'lari aktif olmali:
---   create extension if not exists pg_cron with schema extensions;
---   create extension if not exists pg_net with schema extensions;
---
--- DIKKAT: Asagidaki blogu calistirmadan Once <PROJECT_URL> ve <ANON_KEY>
--- yer tutucularini gercek degerlerle degistirin; aksi halde her dakika gecersiz
--- bir adrese POST atan is kurulur. (Mevcut kurulumlarda is zaten kuruludur;
--- tekrar calistirmak gereksizdir — pg_cron ismiyle eskiyi gunceller.)
+-- ============================================================
+-- v9 Migration: coklu hatirlatma sistemi (10dk + 1sa + gunluk ozet)
+-- ============================================================
+
+-- send-daily-summary: her gun sabah 07:00'de gunun etkinlik ozetini gonderir
 --
 -- select cron.schedule(
---   'send-event-reminders-every-minute',
+--   'send-daily-summary',
+--   '0 7 * * *',
+--   $$
+--   select net.http_post(
+--     url := '<PROJECT_URL>/functions/v1/send-daily-summary',
+--     headers := jsonb_build_object('Authorization', 'Bearer <ANON_KEY>', 'Content-Type', 'application/json')
+--   );
+--   $$
+-- );
+
+-- send-event-reminders: her dakika 10dk ve 1sa once hatirlatmalari gonderir
+--
+-- select cron.schedule(
+--   'send-event-reminders',
 --   '* * * * *',
 --   $$
 --   select net.http_post(

@@ -216,7 +216,7 @@ export default function EventFormModal({
               }
               className={`${inputClass} flex-row items-center justify-between ${activeWheel === "start" ? "border-primary" : ""}`}
             >
-              <Text className="text-base text-gray-900">{startTime}</Text>
+              <Text className="text-base text-gray-900 flex-1">{startTime}</Text>
               <Clock size={18} color="#6B7280" />
             </Pressable>
           </Field>
@@ -229,7 +229,7 @@ export default function EventFormModal({
               }
               className={`${inputClass} flex-row items-center justify-between ${activeWheel === "end" ? "border-primary" : ""}`}
             >
-              <Text className="text-base text-gray-900">{endTime}</Text>
+              <Text className="text-base text-gray-900 flex-1">{endTime}</Text>
               <Clock size={18} color="#6B7280" />
             </Pressable>
           </Field>

@@ -3,6 +3,18 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_Y2FwaXRhbC1yZWRmaXNoLTk3NTQuY2xlcmsuYWNjb3VudHMuZGV2JA",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://mvcfomkwnqorotevtqzu.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12Y2ZvbWt3bnFvcm90ZXZ0cXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MzEwMDksImV4cCI6MjEwMzAwNzAwOX0.YhnyX5ja4hYoWvtvkVLJ42vuyJlrCdzkVZnuq0bMX7g"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {
