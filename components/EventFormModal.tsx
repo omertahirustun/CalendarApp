@@ -38,8 +38,9 @@ export default function EventFormModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  // Etkinligin gunu: olusturmada secili gun, duzenlemede mevcut gun; oklarla degisir
-  const [day, setDay] = useState(() => baseDate ?? new Date());
+  // Etkinligin tarih araligi: olusturmada secili gun, duzenlemede mevcut aralik; oklarla degisir
+  const [startDay, setStartDay] = useState(() => (baseDate ? new Date(baseDate) : new Date()));
+  const [endDay, setEndDay] = useState(() => (baseDate ? new Date(baseDate) : new Date()));
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [color, setColor] = useState<string>("#2D26F0");
@@ -59,7 +60,8 @@ export default function EventFormModal({
       setTitle(editing.title);
       setDescription(editing.description ?? "");
       setLocation(editing.location ?? "");
-      setDay(startOfDay(s));
+      setStartDay(startOfDay(s));
+      setEndDay(startOfDay(e));
       setStartTime(`${String(s.getHours()).padStart(2, "0")}:${String(s.getMinutes()).padStart(2, "0")}`);
       setEndTime(`${String(e.getHours()).padStart(2, "0")}:${String(e.getMinutes()).padStart(2, "0")}`);
       setColor(editing.color);
@@ -68,7 +70,8 @@ export default function EventFormModal({
       setTitle("");
       setDescription("");
       setLocation("");
-      setDay(baseDate ? new Date(baseDate) : new Date());
+      setStartDay(baseDate ? new Date(baseDate) : new Date());
+      setEndDay(baseDate ? new Date(baseDate) : new Date());
       setStartTime("09:00");
       setEndTime("10:00");
       setColor("#2D26F0");
@@ -106,11 +109,11 @@ export default function EventFormModal({
 
     const [sh, sm] = normalizeTime(startTime).split(":").map(Number);
     const [eh, em] = normalizeTime(endTime).split(":").map(Number);
-    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), sh, sm);
-    const end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), eh, em);
-    // Sessiz +24h kaydirma yerine net hata: kullanici bitisi duzeltir
+    const start = new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate(), sh, sm);
+    const end = new Date(endDay.getFullYear(), endDay.getMonth(), endDay.getDate(), eh, em);
+    // Bitis baslangictan once olamaz (gunduz + saat birlikte karsilastirilir)
     if (end <= start) {
-      return setError("Bitiş saati başlangıçtan sonra olmalı.");
+      return setError("Bitiş tarih/saati başlangıçtan sonra olmalı.");
     }
 
     setSaving(true);
@@ -189,17 +192,35 @@ export default function EventFormModal({
         />
       </Field>
 
-      <Field label="Tarih">
+      <Field label="Başlangıç Tarihi">
         <View className="flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl px-2 py-2">
           <Pressable
-            onPress={() => setDay(addDays(day, -1))}
+            onPress={() => setStartDay(addDays(startDay, -1))}
             className="w-9 h-9 rounded-full bg-white border border-gray-200 items-center justify-center"
           >
             <ChevronLeft size={18} color="#374151" />
           </Pressable>
-          <Text className="text-gray-900 font-semibold text-sm">{formatFullDate(day)}</Text>
+          <Text className="text-gray-900 font-semibold text-sm">{formatFullDate(startDay)}</Text>
           <Pressable
-            onPress={() => setDay(addDays(day, 1))}
+            onPress={() => setStartDay(addDays(startDay, 1))}
+            className="w-9 h-9 rounded-full bg-white border border-gray-200 items-center justify-center"
+          >
+            <ChevronRight size={18} color="#374151" />
+          </Pressable>
+        </View>
+      </Field>
+
+      <Field label="Bitiş Tarihi">
+        <View className="flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl px-2 py-2">
+          <Pressable
+            onPress={() => setEndDay(addDays(endDay, -1))}
+            className="w-9 h-9 rounded-full bg-white border border-gray-200 items-center justify-center"
+          >
+            <ChevronLeft size={18} color="#374151" />
+          </Pressable>
+          <Text className="text-gray-900 font-semibold text-sm">{formatFullDate(endDay)}</Text>
+          <Pressable
+            onPress={() => setEndDay(addDays(endDay, 1))}
             className="w-9 h-9 rounded-full bg-white border border-gray-200 items-center justify-center"
           >
             <ChevronRight size={18} color="#374151" />

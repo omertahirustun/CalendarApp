@@ -41,10 +41,11 @@ interface CalendarGridProps {
   onPressMore?: (date: Date) => void;
 }
 
-const CELL_H = 76;
-const CHIP_AREA_TOP = 22;
+const CELL_H = 96;
 const MAX_VISIBLE_CHIPS = 2;
 const PRIMARY_COLOR = "#2D26F0";
+const BORDER_COLOR = "#ECEEF2";
+const BORDER_RADIUS = 10;
 
 function DayCell({
   day,
@@ -71,7 +72,6 @@ function DayCell({
   const selected = isSameDay(day, selectedDate);
   const today = isToday(day);
   const isoKey = toISODateString(day);
-  const ringColor = dots[isoKey]?.[0];
   const events = dayEvents[isoKey] ?? [];
   const hasMore = events.length > MAX_VISIBLE_CHIPS;
   const visibleEvents = events.slice(0, MAX_VISIBLE_CHIPS);
@@ -81,8 +81,26 @@ function DayCell({
   const isMiddle = rangePos === "middle";
   const inRange = rangePos !== null;
 
+  // Hafta sonu (Pzt=0 ... Paz=6 indexlemede) — JS getDay: 0=Pazar, 6=Cumartesi
+  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+
+  // Kutu arka plan rengi: hafta ici beyaz, hafta sonu daha koyu gri,
+  // onceki/sonraki ay gunleri haftasonu grisi, secili ayri gri
+  let boxBg: string;
+  if (inRange) {
+    boxBg = isMiddle ? "#EDEEFF" : "#E0E7FF";
+  } else if (selected) {
+    boxBg = "#E6E8EF";
+  } else if (inMonth && isWeekend) {
+    boxBg = "#E2E3E7";
+  } else if (!inMonth) {
+    boxBg = "#F2F2F4";
+  } else {
+    boxBg = "#FFFFFF";
+  }
+
   const dayNumColor = selected
-    ? "white"
+    ? PRIMARY_COLOR
     : today
       ? PRIMARY_COLOR
       : inMonth
@@ -95,50 +113,40 @@ function DayCell({
       onLongPress={() => onLongPress(day)}
       delayLongPress={400}
       className="flex-1"
-      style={{ height: CELL_H }}
+      android_ripple={{ color: "rgba(107,114,128,0.18)", borderless: false, foreground: true }}
+      style={{
+        height: CELL_H,
+        backgroundColor: boxBg,
+        borderWidth: 1,
+        borderColor: BORDER_COLOR,
+        borderRadius: BORDER_RADIUS,
+        overflow: "hidden",
+      }}
     >
-      {/* Range band background — renders behind the number circle */}
-      {inRange && !isStart && !isEnd && (
+      {/* Aralik baslangic/bitis vurgusu — sadece range seciliyken */}
+      {(isStart || isEnd) && (
         <View
-          className="absolute bg-primary/10"
-          style={{ top: 2, bottom: 2, left: 0, right: 0 }}
-          pointerEvents="none"
-        />
-      )}
-      {isStart && !isEnd && (
-        <View
-          className="absolute bg-primary/10"
-          style={{ top: 2, bottom: 2, left: "50%", right: 0 }}
-          pointerEvents="none"
-        />
-      )}
-      {isEnd && !isStart && (
-        <View
-          className="absolute bg-primary/10"
-          style={{ top: 2, bottom: 2, left: 0, right: "50%" }}
+          className="absolute bg-primary/15"
+          style={{ top: 0, bottom: 0, left: 0, right: 0 }}
           pointerEvents="none"
         />
       )}
 
       {/* Day number */}
-      <View className="items-center mt-1">
+      <View className="pl-1.5 pt-1.5 items-start">
         <View
-          className="w-8 h-8 rounded-full items-center justify-center"
+          className="w-7 h-7 items-center justify-center"
           style={{
-            borderRadius: 20,
-            borderWidth: !selected && !inRange && ringColor ? 1.5 : 0,
-            borderColor: ringColor,
-            backgroundColor: selected
-              ? ringColor ?? PRIMARY_COLOR
-              : isMiddle
-                ? PRIMARY_COLOR
-                : "transparent",
+            borderRadius: 10,
+            backgroundColor: "transparent",
           }}
         >
           <Text
             className="text-xs font-bold"
             style={{
-              color: isMiddle && !selected ? PRIMARY_COLOR : dayNumColor,
+              color: isMiddle && !selected
+                ? PRIMARY_COLOR
+                : dayNumColor,
             }}
           >
             {day.getDate()}
@@ -148,11 +156,12 @@ function DayCell({
 
       {/* Event chips */}
       {visibleEvents.length > 0 && (
-        <View className="px-0.5 mt-0.5">
+        <View className="px-1 mt-0.5">
           {visibleEvents.map((ev) => (
             <EventChip
               key={ev.id}
               event={ev}
+              dimmed={!inMonth}
               onPress={() => onSelect(day)}
               onLongPress={() => onLongPress(day)}
             />
@@ -199,7 +208,7 @@ function MonthGrid({
   return (
     <View>
       {weeks.map((week, wi) => (
-        <View key={wi} className="flex-row">
+        <View key={wi} className="flex-row" style={{ gap: 3, marginBottom: 3 }}>
           {week.map((day) => {
             const rangePos = getRangePosition(day, rangeStart, rangeEnd);
             return (
@@ -282,7 +291,7 @@ export default function CalendarGrid({
       ) : (
         <PagerView
           ref={pagerRef}
-          style={{ height: CELL_H * 6 }}
+          style={{ height: CELL_H * 6 + 3 * 5 }}
           initialPage={1}
           onPageSelected={handlePageSelect}
         >

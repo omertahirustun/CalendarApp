@@ -20,7 +20,8 @@ import type { EventRow } from "../../lib/types";
 import {
   MONTHS_TR,
   addMonths,
-  isSameDay,
+  addDays,
+  startOfDay,
   toISODateString,
   isSameMonth,
   sortRange,
@@ -55,38 +56,58 @@ export default function CalendarScreen() {
   const [sheetDate, setSheetDate] = useState<Date | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
 
+  // Cok gunluk etkinliklerin kapsadigi tum gunlerin ISO anahtarlari
+  const eventDayKeys = useCallback((ev: EventRow): string[] => {
+    const start = startOfDay(new Date(ev.start_time));
+    const end = startOfDay(new Date(ev.end_time));
+    const count = Math.max(daysBetween(start, end) - 1, 0);
+    const keys: string[] = [];
+    for (let i = 0; i <= count; i++) {
+      keys.push(toISODateString(addDays(start, i)));
+    }
+    return keys;
+  }, []);
+
   // Takvim gunleri -> etkinlik renkleri
   const dots: DayDots = useMemo(() => {
     const map: DayDots = {};
     for (const ev of events) {
-      const key = toISODateString(new Date(ev.start_time));
-      if (!map[key]) map[key] = [];
-      if (!map[key].includes(ev.color)) map[key].push(ev.color);
+      for (const key of eventDayKeys(ev)) {
+        if (!map[key]) map[key] = [];
+        if (!map[key].includes(ev.color)) map[key].push(ev.color);
+      }
     }
     return map;
-  }, [events]);
+  }, [events, eventDayKeys]);
 
   // Takvim gunleri -> etkinlik listesi (hucre icinde gosterim icin)
   const dayEvents: DayEvents = useMemo(() => {
     const map: DayEvents = {};
     for (const ev of events) {
-      const key = toISODateString(new Date(ev.start_time));
-      if (!map[key]) map[key] = [];
-      map[key].push(ev);
+      for (const key of eventDayKeys(ev)) {
+        if (!map[key]) map[key] = [];
+        map[key].push(ev);
+      }
     }
     return map;
-  }, [events]);
+  }, [events, eventDayKeys]);
 
   // Secili aralik/tarih icin etkinlikler
   const filteredEvents = useMemo(() => {
     if (rangeStart && rangeEnd) {
       const [lo, hi] = sortRange(rangeStart, rangeEnd);
       return events.filter((ev) => {
-        const d = new Date(ev.start_time);
-        return d >= lo && d <= hi;
+        const s = startOfDay(new Date(ev.start_time));
+        const e = startOfDay(new Date(ev.end_time));
+        return s <= hi && e >= lo;
       });
     }
-    return events.filter((ev) => isSameDay(new Date(ev.start_time), selectedDate));
+    const sel = startOfDay(selectedDate);
+    return events.filter((ev) => {
+      const s = startOfDay(new Date(ev.start_time));
+      const e = startOfDay(new Date(ev.end_time));
+      return s <= sel && e >= sel;
+    });
   }, [events, rangeStart, rangeEnd, selectedDate]);
 
   // Range label
