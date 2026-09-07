@@ -1,22 +1,38 @@
 import { useEffect } from "react";
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { useAuth } from "@clerk/clerk-expo";
 import { saveDeviceToken } from "../lib/api";
 
-// Expo Go (SDK 53+) Android'de uzak bildirimler kaldirildi; development build gerekir
+// Expo Go (SDK 53+) Android'de expo-notifications modulu DAHA YUKLENIRKEN throw eder
+// (DevicePushTokenAutoRegistration.fx top-level'da remote push kullanimi nedeniyle).
+// Bu yuzden modul statik degil, Expo Go Android disinda ihtiyac halinde yuklenir.
 const IS_EXPO_GO =
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+const IS_EXPO_GO_ANDROID = Platform.OS === "android" && IS_EXPO_GO;
+
+type NotificationsModule = typeof import("expo-notifications");
+
+let notificationHandlerSet = false;
+
+function loadNotifications(): NotificationsModule {
+  return require("expo-notifications") as NotificationsModule;
+}
+
+function ensureNotificationHandler() {
+  if (notificationHandlerSet || IS_EXPO_GO_ANDROID) return;
+  const Notifications = loadNotifications();
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+  notificationHandlerSet = true;
+}
 
 function getEASProjectId(): string | undefined {
   return (
@@ -30,6 +46,22 @@ export type PushRegistration =
   | { ok: false; reason: "denied" | "expo-go" | "error"; message: string };
 
 export async function registerForPushNotifications(): Promise<PushRegistration> {
+  if (IS_EXPO_GO_ANDROID) {
+    console.warn(
+      "[bildirim] Uzak bildirimler Expo Go'da desteklenmiyor (SDK 53+). " +
+        "Push icin development build gerekli: https://docs.expo.dev/develop/development-builds/introduction/"
+    );
+    return {
+      ok: false,
+      reason: "expo-go",
+      message:
+        "Expo Go uzak bildirimleri desteklemiyor. Test için APK (development build) kurun.",
+    };
+  }
+
+  ensureNotificationHandler();
+  const Notifications = loadNotifications();
+
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("reminders", {
       name: "Hatırlatıcılar",
@@ -50,20 +82,6 @@ export async function registerForPushNotifications(): Promise<PushRegistration> 
       ok: false,
       reason: "denied",
       message: "Bildirim izni verilmedi. Cihaz ayarlarından izin verin.",
-    };
-  }
-
-  // Uzak bildirim kaydi Expo Go Android'de mumkun degil; local izin/channel islemleri kalsin
-  if (Platform.OS === "android" && IS_EXPO_GO) {
-    console.warn(
-      "[bildirim] Uzak bildirimler Expo Go'da desteklenmiyor (SDK 53+). " +
-        "Push icin development build gerekli: https://docs.expo.dev/develop/development-builds/introduction/"
-    );
-    return {
-      ok: false,
-      reason: "expo-go",
-      message:
-        "Expo Go uzak bildirimleri desteklemiyor. Test için APK (development build) kurun.",
     };
   }
 

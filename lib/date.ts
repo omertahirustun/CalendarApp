@@ -175,6 +175,16 @@ export function daysBetween(a: Date, b: Date): number {
   return Math.round((hi.getTime() - lo.getTime()) / 86400000) + 1;
 }
 
+/** Etkinlik birden fazla gun mu kaplıyor? */
+export function isMultiDay(ev: { start_time: string; end_time: string }): boolean {
+  return !isSameDay(startOfDay(new Date(ev.start_time)), startOfDay(new Date(ev.end_time)));
+}
+
+/** Hafta icindeki sutun indexi (0=Pzt ... 6=Paz) */
+export function getDayCol(d: Date): number {
+  return (d.getDay() + 6) % 7;
+}
+
 /** ISO string formatinda aralik baslik */
 export function formatRangeLabel(start: Date, end: Date): string {
   const [lo, hi] = sortRange(start, end);

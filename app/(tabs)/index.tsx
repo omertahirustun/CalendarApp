@@ -3,17 +3,20 @@ import {
   View,
   Pressable,
   Alert,
+  FlatList,
 } from "react-native";
 import { Text } from "../../components/AppText";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { Plus } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Plus, CalendarX2 } from "lucide-react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Header from "../../components/Header";
 import CalendarGrid, { type DayDots, type DayEvents } from "../../components/CalendarGrid";
 import EventFormModal from "../../components/EventFormModal";
 import DayEventsSheet from "../../components/DayEventsSheet";
+import EventCard from "../../components/EventCard";
+import EmptyState from "../../components/EmptyState";
 import { useEventsRealtime } from "../../hooks/useEventsRealtime";
 import { createEvent, deleteEvent, updateEvent, type EventInput } from "../../lib/api";
 import type { EventRow } from "../../lib/types";
@@ -35,6 +38,7 @@ export default function CalendarScreen() {
   const { userId } = useAuth();
   const { user } = useUser();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { items: events, loading, error, refetch } = useEventsRealtime(userId);
 
   useFocusEffect(
@@ -226,50 +230,78 @@ export default function CalendarScreen() {
         </Pressable>
       </View>
 
-      {/* Range label or selected day info */}
-      {rangeLabel ? (
-        <View className="flex-row items-center justify-between px-4 py-1.5">
-          <Text className="text-sm font-semibold text-primary flex-1">
-            {rangeLabel}
-          </Text>
-          <Pressable onPress={clearRange} className="px-3 py-1 rounded-full bg-primary/10">
-            <Text className="text-xs font-semibold text-primary">Temizle</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View className="px-4 py-1.5">
-          <Text className="text-sm text-gray-500">
-            {isToday(selectedDate)
-              ? "Bugün"
-              : formatFullDate(selectedDate)}
-            {filteredEvents.length > 0
-              ? `  ·  ${filteredEvents.length} etkinlik`
-              : ""}
-          </Text>
-        </View>
-      )}
+      <FlatList
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 140 }}
+        showsVerticalScrollIndicator={false}
+        data={filteredEvents}
+        keyExtractor={(ev) => ev.id}
+        ListHeaderComponent={
+          <View>
+            {/* Full-screen calendar grid */}
+            <View className="px-2">
+              <CalendarGrid
+                monthDate={monthDate}
+                selectedDate={selectedDate}
+                onSelectDay={handleSelectDay}
+                onLongPressDay={handleLongPressDay}
+                onMonthChange={setMonthDate}
+                dots={dots}
+                dayEvents={dayEvents}
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                onPressMore={handlePressMore}
+              />
+            </View>
 
-      {/* Full-screen calendar grid */}
-      <View className="flex-1 px-2">
-        <CalendarGrid
-          monthDate={monthDate}
-          selectedDate={selectedDate}
-          onSelectDay={handleSelectDay}
-          onLongPressDay={handleLongPressDay}
-          onMonthChange={setMonthDate}
-          dots={dots}
-          dayEvents={dayEvents}
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
-          onPressMore={handlePressMore}
-        />
-      </View>
+            {/* Selected day / range label */}
+            <View className="px-5 pt-1.5 pb-1">
+              {rangeLabel ? (
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-sm font-semibold text-primary flex-1">
+                    {rangeLabel}
+                  </Text>
+                  <Pressable onPress={clearRange} className="px-3 py-1 rounded-full bg-primary/10">
+                    <Text className="text-xs font-semibold text-primary">Temizle</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Text className="text-sm text-gray-500">
+                  {isToday(selectedDate)
+                    ? "Bugün"
+                    : formatFullDate(selectedDate)}
+                  {filteredEvents.length > 0
+                    ? `  ·  ${filteredEvents.length} etkinlik`
+                    : ""}
+                </Text>
+              )}
+            </View>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View className="px-4 mb-3">
+            <EventCard event={item} onPress={() => openEdit(item)} />
+          </View>
+        )}
+        ListEmptyComponent={
+          !rangeLabel && filteredEvents.length === 0 ? (
+            <View className="px-2 pt-2">
+              <EmptyState
+                icon={CalendarX2}
+                title="Bu günde etkinlik yok"
+                subtitle="Yeni etkinlik oluşturmak için + butonunu kullan"
+              />
+            </View>
+          ) : null
+        }
+      />
 
       {/* FAB */}
       <Pressable
         onPress={openCreate}
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary shadow-lg items-center justify-center"
+        className="absolute right-6 w-14 h-14 rounded-full bg-primary shadow-lg items-center justify-center"
         style={{
+          bottom: Math.max(insets.bottom, 12) + 64 + 16,
           shadowColor: "#2D26F0",
           shadowOpacity: 0.4,
           shadowRadius: 8,

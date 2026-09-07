@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Pressable,
   Platform,
+  type LayoutChangeEvent,
 } from "react-native";
 import { Text } from "./AppText";
 import PagerView from "react-native-pager-view";
@@ -17,8 +18,17 @@ import {
   toISODateString,
   getRangePosition,
   sortRange,
+  isMultiDay,
+  startOfDay,
 } from "../lib/date";
 import type { EventRow } from "../lib/types";
+
+interface EventBarDescriptor {
+  event: EventRow;
+  colStart: number;
+  colEnd: number;
+  lane: number;
+}
 
 export interface DayDots {
   [isoDate: string]: string[];
@@ -41,40 +51,47 @@ interface CalendarGridProps {
   onPressMore?: (date: Date) => void;
 }
 
-const CELL_H = 96;
+const CELL_H = 92;
 const MAX_VISIBLE_CHIPS = 2;
+const MAX_VISIBLE_BARS = 2;
 const PRIMARY_COLOR = "#2D26F0";
 const BORDER_COLOR = "#ECEEF2";
 const BORDER_RADIUS = 10;
 
-function DayCell({
+function DayCellInner({
   day,
   month,
-  selectedDate,
+  selected,
   onSelect,
   onLongPress,
   dots,
   dayEvents,
   rangePos,
   onPressMore,
+  barRows,
+  barsOverflow,
 }: {
   day: Date;
   month: Date;
-  selectedDate: Date;
+  selected: boolean;
   onSelect: (d: Date) => void;
   onLongPress: (d: Date) => void;
   dots: DayDots;
   dayEvents: DayEvents;
   rangePos: ReturnType<typeof getRangePosition>;
   onPressMore?: (d: Date) => void;
+  barRows?: number;
+  barsOverflow?: number;
 }) {
   const inMonth = isSameMonth(day, month);
-  const selected = isSameDay(day, selectedDate);
   const today = isToday(day);
   const isoKey = toISODateString(day);
-  const events = dayEvents[isoKey] ?? [];
-  const hasMore = events.length > MAX_VISIBLE_CHIPS;
-  const visibleEvents = events.slice(0, MAX_VISIBLE_CHIPS);
+  const allEvents = dayEvents[isoKey] ?? [];
+  const singleDayEvents = allEvents.filter((ev) => !isMultiDay(ev));
+  const visibleEvents = singleDayEvents.slice(0, MAX_VISIBLE_CHIPS);
+  const singleOverflow = Math.max(singleDayEvents.length - MAX_VISIBLE_CHIPS, 0);
+  const totalHidden = (barsOverflow ?? 0) + singleOverflow;
+  const hasMore = totalHidden > 0;
 
   const isStart = rangePos === "start" || rangePos === "single";
   const isEnd = rangePos === "end" || rangePos === "single";
@@ -154,8 +171,17 @@ function DayCell({
         </View>
       </View>
 
+      {/* Cok gunluk etkinlik barlari icin ayrilan alan (cabipler bunun altinda akar) */}
+      {(barRows ?? 0) > 0 && (
+        <View
+          style={{
+            height: (barRows ?? 0) * (BAR_H + BAR_GAP) + BAR_GAP,
+          }}
+        />
+      )}
+
       {/* Event chips */}
-      {visibleEvents.length > 0 && (
+      {(visibleEvents.length > 0 || hasMore) && (
         <View className="px-1 mt-0.5">
           {visibleEvents.map((ev) => (
             <EventChip
@@ -172,7 +198,7 @@ function DayCell({
               className="items-center"
             >
               <Text className="text-[9px] font-semibold text-primary">
-                +{events.length - MAX_VISIBLE_CHIPS} daha
+                +{totalHidden} daha
               </Text>
             </Pressable>
           )}
@@ -182,7 +208,118 @@ function DayCell({
   );
 }
 
-function MonthGrid({
+const DayCell = memo(DayCellInner);
+
+const BAR_ZONE_TOP = 36;
+const BAR_H = 20;
+const BAR_GAP = 2;
+const WEEK_GAP = 3;
+
+function contrastTextColor(hex: string): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+  return luminance > 210 ? "#1F2937" : "#FFFFFF";
+}
+
+function MultiDayEventBar({
+  bar,
+  dimmed,
+  containerWidth,
+}: {
+  bar: EventBarDescriptor;
+  dimmed: boolean;
+  containerWidth: number;
+}) {
+  const ev = bar.event;
+  const cellW = (containerWidth - 6 * WEEK_GAP) / 7;
+  const cellStep = cellW + WEEK_GAP;
+  const left = bar.colStart * cellStep;
+  const width = (bar.colEnd - bar.colStart + 1) * cellStep - WEEK_GAP;
+  const top = BAR_ZONE_TOP + bar.lane * (BAR_H + BAR_GAP);
+  // Hafif seffaf zemin (sadece arka plan): metin opak kalir
+  const bgColor = ev.color.startsWith("#") ? `${ev.color}8C` : ev.color;
+
+  return (
+    <View
+      style={{
+        position: "absolute",
+        left,
+        width,
+        top,
+        height: BAR_H,
+        backgroundColor: bgColor,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: `${ev.color.startsWith("#") ? ev.color : "#cccccc"}55`,
+        paddingHorizontal: 6,
+        justifyContent: "center",
+        alignItems: "center",
+        opacity: dimmed ? 0.5 : 1,
+        zIndex: 10 + bar.lane,
+      }}
+      pointerEvents="none"
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          fontSize: 9,
+          fontWeight: "600",
+          color: contrastTextColor(ev.color),
+          textAlign: "center",
+        }}
+      >
+        {ev.title}
+      </Text>
+    </View>
+  );
+}
+
+function computeWeekEventBars(
+  week: Date[],
+  dayEvents: DayEvents
+): EventBarDescriptor[] {
+  const bars: EventBarDescriptor[] = [];
+  const weekStart = week[0].getTime();
+  const weekEnd = week[6].getTime();
+  const allEvIds = new Set<string>();
+
+  for (let col = 0; col < 7; col++) {
+    const isoKey = toISODateString(week[col]);
+    const events = dayEvents[isoKey] ?? [];
+    for (const ev of events) {
+      if (!isMultiDay(ev) || allEvIds.has(ev.id)) continue;
+      allEvIds.add(ev.id);
+
+      const evStart = startOfDay(new Date(ev.start_time)).getTime();
+      const evEnd = startOfDay(new Date(ev.end_time)).getTime();
+      if (evEnd < weekStart || evStart > weekEnd) continue;
+
+      const colStart = evStart <= weekStart ? 0 : col;
+      let colEnd = col;
+      for (let c = col + 1; c < 7; c++) {
+        const cTime = week[c].getTime();
+        if (cTime >= evStart && cTime <= evEnd) colEnd = c;
+        else break;
+      }
+
+      const lane = bars.findIndex(
+        (b) => colStart <= b.colEnd && colEnd >= b.colStart
+      );
+      bars.push({
+        event: ev,
+        colStart,
+        colEnd,
+        lane: lane === -1 ? 0 : lane + 1,
+      });
+    }
+  }
+  return bars;
+}
+
+function MonthGridInner({
   month,
   selectedDate,
   onSelectDay,
@@ -204,33 +341,103 @@ function MonthGrid({
   onPressMore?: (d: Date) => void;
 }) {
   const weeks = useMemo(() => getMonthMatrix(month), [month]);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  const handleContainerLayout = useCallback((e: LayoutChangeEvent) => {
+    if (e.nativeEvent.layout.width > 0) {
+      setContainerWidth(e.nativeEvent.layout.width);
+    }
+  }, []);
+
+  const barsByWeek = useMemo(() => {
+    const map = new Map<number, EventBarDescriptor[]>();
+    for (let wi = 0; wi < weeks.length; wi++) {
+      map.set(wi, computeWeekEventBars(weeks[wi], dayEvents));
+    }
+    return map;
+  }, [weeks, dayEvents]);
 
   return (
     <View>
-      {weeks.map((week, wi) => (
-        <View key={wi} className="flex-row" style={{ gap: 3, marginBottom: 3 }}>
-          {week.map((day) => {
-            const rangePos = getRangePosition(day, rangeStart, rangeEnd);
-            return (
-              <DayCell
-                key={toISODateString(day)}
-                day={day}
-                month={month}
-                selectedDate={selectedDate}
-                onSelect={onSelectDay}
-                onLongPress={onLongPressDay}
-                dots={dots}
-                dayEvents={dayEvents}
-                rangePos={rangePos}
-                onPressMore={onPressMore}
-              />
-            );
-          })}
-        </View>
-      ))}
+      {weeks.map((week, wi) => {
+        const bars = barsByWeek.get(wi) ?? [];
+        const renderedBars = [...bars]
+          .sort((a, b) => a.lane - b.lane)
+          .slice(0, MAX_VISIBLE_BARS);
+
+        const barsOverflowPerDay = new Map<number, number>();
+        const barRowsPerDay = new Map<number, number>();
+        for (let c = 0; c < 7; c++) {
+          const allOnCol = bars.filter(
+            (b) => c >= b.colStart && c <= b.colEnd
+          ).length;
+          const renderedOnCol = renderedBars.filter(
+            (b) => c >= b.colStart && c <= b.colEnd
+          ).length;
+          const overflow = allOnCol - renderedOnCol;
+          if (overflow > 0) barsOverflowPerDay.set(c, overflow);
+          if (renderedOnCol > 0) barRowsPerDay.set(c, renderedOnCol);
+        }
+
+        return (
+          <View key={wi} style={{ marginBottom: 3 }}>
+            <View
+              className="flex-row"
+              style={{ gap: WEEK_GAP, position: "relative" }}
+              onLayout={handleContainerLayout}
+            >
+              {week.map((day, di) => {
+                const rangePos = getRangePosition(day, rangeStart, rangeEnd);
+                return (
+                  <DayCell
+                    key={toISODateString(day)}
+                    day={day}
+                    month={month}
+                    selected={isSameDay(day, selectedDate)}
+                    onSelect={onSelectDay}
+                    onLongPress={onLongPressDay}
+                    dots={dots}
+                    dayEvents={dayEvents}
+                    rangePos={rangePos}
+                    onPressMore={onPressMore}
+                    barRows={barRowsPerDay.get(di) ?? 0}
+                    barsOverflow={barsOverflowPerDay.get(di) ?? 0}
+                  />
+                );
+              })}
+
+              {/* Cok gunluk etkinlik barlari: hucrelerin icinde, ayirma alani uzrinde */}
+              {renderedBars.length > 0 &&
+                containerWidth > 0 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: CELL_H,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {renderedBars.map((bar) => (
+                      <MultiDayEventBar
+                        key={bar.event.id}
+                        bar={bar}
+                        dimmed={!isSameMonth(week[0], month)}
+                        containerWidth={containerWidth}
+                      />
+                    ))}
+                  </View>
+                )}
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
+
+const MonthGrid = memo(MonthGridInner);
 
 export default function CalendarGrid({
   monthDate,
@@ -264,16 +471,33 @@ export default function CalendarGrid({
     pagerRef.current?.setPageWithoutAnimation(1);
   }, [monthDate]);
 
-  const gridProps = {
-    selectedDate,
-    onSelectDay,
-    onLongPressDay: onLongPressDay ?? (() => {}),
-    dots,
-    dayEvents,
-    rangeStart,
-    rangeEnd,
-    onPressMore,
-  };
+  const gridProps = useMemo(
+    () => ({
+      selectedDate,
+      onSelectDay,
+      onLongPressDay: onLongPressDay ?? (() => {}),
+      dots,
+      dayEvents,
+      rangeStart,
+      rangeEnd,
+      onPressMore,
+    }),
+    [
+      selectedDate,
+      onSelectDay,
+      onLongPressDay,
+      dots,
+      dayEvents,
+      rangeStart,
+      rangeEnd,
+      onPressMore,
+    ]
+  );
+
+  // PagerView sabit yukseklik ister: merkez ayin gercek hafta sayisina gore
+  // boyutlandir (kisa aylarda bos satir kalmasin).
+  const weekCount = useMemo(() => getMonthMatrix(monthDate).length, [monthDate]);
+  const gridHeight = weekCount * CELL_H + (weekCount - 1) * 3;
 
   return (
     <View>
@@ -291,7 +515,7 @@ export default function CalendarGrid({
       ) : (
         <PagerView
           ref={pagerRef}
-          style={{ height: CELL_H * 6 + 3 * 5 }}
+          style={{ height: gridHeight }}
           initialPage={1}
           onPageSelected={handlePageSelect}
         >

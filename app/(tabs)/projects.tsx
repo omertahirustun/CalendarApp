@@ -9,7 +9,7 @@ import { Text, TextInput } from "../../components/AppText";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useFocusEffect } from "expo-router";
 import { Plus, FolderKanban, Search } from "lucide-react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Header from "../../components/Header";
 import TrackedItemCard from "../../components/TrackedItemCard";
@@ -26,6 +26,7 @@ import type { TrackedItemRow } from "../../lib/types";
 export default function ProjectsScreen() {
   const { userId } = useAuth();
   const { user } = useUser();
+  const insets = useSafeAreaInsets();
   const { items: tracked, loading, error, refetch } = useTrackedItemsRealtime(userId);
 
   // Sekmeye her donuste veriyi tazele; realtime gecikse/kesilse bile liste guncel kalir
@@ -173,8 +174,14 @@ export default function ProjectsScreen() {
           setEditing(null);
           setFormVisible(true);
         }}
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary shadow-lg items-center justify-center"
-        style={{ shadowColor: "#2D26F0", shadowOpacity: 0.4, shadowRadius: 8, elevation: 6 }}
+        className="absolute right-6 w-14 h-14 rounded-full bg-primary shadow-lg items-center justify-center"
+        style={{
+          bottom: Math.max(insets.bottom, 12) + 64 + 16,
+          shadowColor: "#2D26F0",
+          shadowOpacity: 0.4,
+          shadowRadius: 8,
+          elevation: 6,
+        }}
       >
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </Pressable>
