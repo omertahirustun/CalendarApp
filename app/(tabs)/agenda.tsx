@@ -16,7 +16,9 @@ import Header from "../../components/Header";
 import EmptyState from "../../components/EmptyState";
 import EventCard from "../../components/EventCard";
 import EventFormModal from "../../components/EventFormModal";
+import EventDetailModal from "../../components/EventDetailModal";
 import { useEventsRealtime } from "../../hooks/useEventsRealtime";
+import { useEditModal } from "../../hooks/useEditModal";
 import { updateEvent, deleteEvent, type EventInput } from "../../lib/api";
 import {
   MONTHS_TR,
@@ -99,8 +101,8 @@ export default function AgendaScreen() {
     }, [refetch])
   );
 
-  const [editing, setEditing] = useState<EventRow | null>(null);
-  const [formVisible, setFormVisible] = useState(false);
+  const { visible: formVisible, editing, openEdit, close: closeForm } = useEditModal<EventRow>();
+  const { visible: detailVisible, editing: detailEvent, openEdit: openDetail, close: closeDetail } = useEditModal<EventRow>();
 
   const now = useMemo(() => new Date(dayAnchor), [dayAnchor]);
 
@@ -145,13 +147,6 @@ export default function AgendaScreen() {
     return counts;
   }, [dayGroups]);
 
-  const openEdit = useCallback((ev: EventRow) => {
-    setEditing(ev);
-    setFormVisible(true);
-  }, []);
-
-  const closeForm = useCallback(() => setFormVisible(false), []);
-
   const handleSubmit = useCallback(
     async (input: EventInput) => {
       if (!editing) return;
@@ -165,17 +160,19 @@ export default function AgendaScreen() {
     [editing, refetch]
   );
 
-  // Silme onayi EventFormModal icinde sorulur; burada dogrudan silinir
-  const handleDelete = useCallback(async () => {
-    if (!editing) return;
-    try {
-      await deleteEvent(editing.id);
-    } catch {
-      Alert.alert("Hata", "Etkinlik silinemedi.");
-    } finally {
-      refetch();
-    }
-  }, [editing, refetch]);
+  // Silme onayi EventFormModal/EventDetailModal icinde sorulur; burada dogrudan silinir
+  const handleDelete = useCallback(
+    async (ev: EventRow) => {
+      try {
+        await deleteEvent(ev.id);
+      } catch {
+        Alert.alert("Hata", "Etkinlik silinemedi.");
+      } finally {
+        refetch();
+      }
+    },
+    [refetch]
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
@@ -257,7 +254,7 @@ export default function AgendaScreen() {
                     <EventCard
                       key={ev.id}
                       event={ev}
-                      onPress={() => openEdit(ev)}
+                      onPress={() => openDetail(ev)}
                     />
                   ))}
                 </View>
@@ -285,8 +282,24 @@ export default function AgendaScreen() {
         visible={formVisible}
         onClose={closeForm}
         onSubmit={handleSubmit}
-        onDelete={handleDelete}
+        onDelete={() => {
+          if (editing) return handleDelete(editing);
+        }}
         editing={editing}
+      />
+
+      <EventDetailModal
+        visible={detailVisible}
+        event={detailEvent}
+        onClose={closeDetail}
+        onEdit={(ev) => {
+          closeDetail();
+          openEdit(ev);
+        }}
+        onDelete={(ev) => {
+          closeDetail();
+          handleDelete(ev);
+        }}
       />
     </SafeAreaView>
   );

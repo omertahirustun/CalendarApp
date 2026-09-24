@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Pressable,
@@ -6,23 +6,24 @@ import {
   FlatList,
 } from "react-native";
 import { Text } from "../../components/AppText";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Plus, CalendarX2 } from "lucide-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Header from "../../components/Header";
-import CalendarGrid, { type DayDots, type DayEvents } from "../../components/CalendarGrid";
+import CalendarGrid, { type CalendarGridHandle, type DayDots, type DayEvents } from "../../components/CalendarGrid";
 import EventFormModal from "../../components/EventFormModal";
+import EventDetailModal from "../../components/EventDetailModal";
 import DayEventsSheet from "../../components/DayEventsSheet";
 import EventCard from "../../components/EventCard";
 import EmptyState from "../../components/EmptyState";
 import { useEventsRealtime } from "../../hooks/useEventsRealtime";
+import { useEditModal } from "../../hooks/useEditModal";
 import { createEvent, deleteEvent, updateEvent, type EventInput } from "../../lib/api";
 import type { EventRow } from "../../lib/types";
 import {
   MONTHS_TR,
-  addMonths,
   addDays,
   startOfDay,
   toISODateString,
@@ -32,6 +33,7 @@ import {
   formatRangeLabel,
   formatFullDate,
   isToday,
+  parseISODateString,
 } from "../../lib/date";
 
 export default function CalendarScreen() {
@@ -40,6 +42,8 @@ export default function CalendarScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { items: events, loading, error, refetch } = useEventsRealtime(userId);
+  // Ana ekran widget'inda bir gune dokununca gelen deep link: calendarapp://?date=YYYY-MM-DD
+  const { date: deepLinkDate } = useLocalSearchParams<{ date?: string }>();
 
   useFocusEffect(
     useCallback(() => {
@@ -47,10 +51,19 @@ export default function CalendarScreen() {
     }, [refetch])
   );
 
+  const calendarGridRef = useRef<CalendarGridHandle>(null);
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [formVisible, setFormVisible] = useState(false);
-  const [editing, setEditing] = useState<EventRow | null>(null);
+
+  useEffect(() => {
+    if (typeof deepLinkDate !== "string") return;
+    const d = parseISODateString(deepLinkDate);
+    if (Number.isNaN(d.getTime())) return;
+    setSelectedDate(d);
+    setMonthDate(d);
+  }, [deepLinkDate]);
+  const { visible: formVisible, editing, openCreate, openEdit, close: closeForm } = useEditModal<EventRow>();
+  const { visible: detailVisible, editing: detailEvent, openEdit: openDetail, close: closeDetail } = useEditModal<EventRow>();
 
   // Range selection state
   const [rangeStart, setRangeStart] = useState<Date | null>(null);
@@ -123,24 +136,16 @@ export default function CalendarScreen() {
     return null;
   }, [rangeStart, rangeEnd]);
 
-  const openCreate = useCallback(() => {
-    setEditing(null);
-    setFormVisible(true);
-  }, []);
-
-  const openEdit = useCallback((ev: EventRow) => {
-    setEditing(ev);
-    setFormVisible(true);
-  }, []);
-
-  const handleDelete = useCallback(() => {
-    if (!editing) return;
-    deleteEvent(editing.id)
-      .catch((e) =>
-        Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.")
-      )
-      .finally(() => refetch());
-  }, [editing, refetch]);
+  const handleDelete = useCallback(
+    (ev: EventRow) => {
+      deleteEvent(ev.id)
+        .catch((e) =>
+          Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi.")
+        )
+        .finally(() => refetch());
+    },
+    [refetch]
+  );
 
   const handleSubmit = useCallback(
     async (input: EventInput) => {
@@ -214,7 +219,7 @@ export default function CalendarScreen() {
       {/* Month navigation */}
       <View className="flex-row items-center justify-between px-4 py-1">
         <Pressable
-          onPress={() => setMonthDate(addMonths(monthDate, -1))}
+          onPress={() => calendarGridRef.current?.goToPrevMonth()}
           className="w-9 h-9 rounded-full items-center justify-center"
         >
           <Text className="text-primary text-2xl font-bold">‹</Text>
@@ -223,7 +228,7 @@ export default function CalendarScreen() {
           {MONTHS_TR[monthDate.getMonth()]} {monthDate.getFullYear()}
         </Text>
         <Pressable
-          onPress={() => setMonthDate(addMonths(monthDate, 1))}
+          onPress={() => calendarGridRef.current?.goToNextMonth()}
           className="w-9 h-9 rounded-full items-center justify-center"
         >
           <Text className="text-primary text-2xl font-bold">›</Text>
@@ -241,6 +246,7 @@ export default function CalendarScreen() {
             {/* Full-screen calendar grid */}
             <View className="px-2">
               <CalendarGrid
+                ref={calendarGridRef}
                 monthDate={monthDate}
                 selectedDate={selectedDate}
                 onSelectDay={handleSelectDay}
@@ -280,7 +286,7 @@ export default function CalendarScreen() {
         }
         renderItem={({ item }) => (
           <View className="px-4 mb-3">
-            <EventCard event={item} onPress={() => openEdit(item)} />
+            <EventCard event={item} onPress={() => openDetail(item)} />
           </View>
         )}
         ListEmptyComponent={
@@ -313,11 +319,27 @@ export default function CalendarScreen() {
 
       <EventFormModal
         visible={formVisible}
-        onClose={() => setFormVisible(false)}
+        onClose={closeForm}
         onSubmit={handleSubmit}
-        onDelete={handleDelete}
+        onDelete={() => {
+          if (editing) handleDelete(editing);
+        }}
         editing={editing}
         baseDate={selectedDate}
+      />
+
+      <EventDetailModal
+        visible={detailVisible}
+        event={detailEvent}
+        onClose={closeDetail}
+        onEdit={(ev) => {
+          closeDetail();
+          openEdit(ev);
+        }}
+        onDelete={(ev) => {
+          closeDetail();
+          handleDelete(ev);
+        }}
       />
 
       {/* Day events overflow sheet */}
@@ -328,7 +350,7 @@ export default function CalendarScreen() {
         onClose={() => setSheetVisible(false)}
         onEditEvent={(ev) => {
           setSheetVisible(false);
-          openEdit(ev);
+          openDetail(ev);
         }}
       />
     </SafeAreaView>

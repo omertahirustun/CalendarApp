@@ -10,6 +10,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { setClerkTokenGetter } from "../lib/supabase";
 import { getNotificationsEnabled } from "../lib/notificationPrefs";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { useProfileSync } from "../hooks/useProfileSync";
 
 const CLERK_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -58,6 +59,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Push bildirim kaydi: giris yapmis VE tercihi acikca "true" yuklenmis olmali.
   // null iken kayit baslatilmaz — SecureStore okumasi gecikse token yazilmaz.
   usePushNotifications(Boolean(isSignedIn) && notificationsOn === true);
+  // Katilimci secicisi icin: adin her zaman profiles tablosunda guncel kalsin
+  useProfileSync(Boolean(isSignedIn));
 
   const inAuth = segments[0] === "(auth)";
 

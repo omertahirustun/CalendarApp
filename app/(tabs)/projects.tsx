@@ -16,6 +16,7 @@ import TrackedItemCard from "../../components/TrackedItemCard";
 import TrackedItemFormModal from "../../components/TrackedItemFormModal";
 import EmptyState from "../../components/EmptyState";
 import { useTrackedItemsRealtime } from "../../hooks/useTrackedItemsRealtime";
+import { useEditModal } from "../../hooks/useEditModal";
 import {
   createTrackedItem,
   deleteTrackedItem,
@@ -37,8 +38,7 @@ export default function ProjectsScreen() {
   );
 
   const [query, setQuery] = useState("");
-  const [formVisible, setFormVisible] = useState(false);
-  const [editing, setEditing] = useState<TrackedItemRow | null>(null);
+  const { visible: formVisible, editing, openCreate, openEdit, close: closeForm } = useEditModal<TrackedItemRow>();
 
   // Sadelestirildi: surukleme kaldirildi; siralama sunucudan gelen sort_order
   const ordered = tracked;
@@ -66,12 +66,6 @@ export default function ProjectsScreen() {
     },
     [refetch]
   );
-
-  // Basliga dokunulan kaydi duzenleme modunda acar
-  const openEdit = useCallback((item: TrackedItemRow) => {
-    setEditing(item);
-    setFormVisible(true);
-  }, []);
 
   const confirmDelete = useCallback(
     (item: TrackedItemRow) => {
@@ -170,10 +164,7 @@ export default function ProjectsScreen() {
       </View>
 
       <Pressable
-        onPress={() => {
-          setEditing(null);
-          setFormVisible(true);
-        }}
+        onPress={openCreate}
         className="absolute right-6 w-14 h-14 rounded-full bg-primary shadow-lg items-center justify-center"
         style={{
           bottom: Math.max(insets.bottom, 12) + 64 + 16,
@@ -188,7 +179,7 @@ export default function ProjectsScreen() {
 
       <TrackedItemFormModal
         visible={formVisible}
-        onClose={() => setFormVisible(false)}
+        onClose={closeForm}
         onSubmit={handleSubmit}
         editing={editing}
       />

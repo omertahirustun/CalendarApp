@@ -323,8 +323,7 @@ function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  const tabBarContentHeight =
-    BAR_HEIGHT + (Platform.OS === "android" ? insets.bottom : 0);
+  const tabBarContentHeight = BAR_HEIGHT + insets.bottom;
 
   return (
     <Tabs

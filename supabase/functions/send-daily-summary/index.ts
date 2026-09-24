@@ -10,6 +10,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_CHUNK_SIZE = 100;
 
+// Bu kategorideki etkinlikler gunluk ozete dahil edilmez / bildirim tetiklemez
+// (uygulamadaki lib/types.ts SILENT_CATEGORIES ile ayni kaynak; Deno edge
+// function bundle'i uygulama kodunu import edemedigi icin burada tekrarlanir)
+const SILENT_CATEGORIES = new Set(["availability"]);
+
 interface PushMessage {
   to: string;
   title: string;
@@ -45,61 +50,93 @@ Deno.serve(async (_req) => {
     // Bugunku etkinlikleri bul
     const { data: events, error: evErr } = await sb
       .from("events")
-      .select("id, title, start_time, end_time, category")
+      .select("id, title, start_time, end_time, category, visibility, user_id")
       .gte("start_time", dayStart.toISOString())
       .lte("start_time", dayEnd.toISOString())
       .order("start_time", { ascending: true });
     if (evErr) throw evErr;
 
-    if (!events || events.length === 0) {
+    // Musaitlik gibi sessiz kategoriler ozete/bildirime dahil edilmez
+    const notifiableEvents = (events ?? []).filter(
+      (ev) => !ev.category || !SILENT_CATEGORIES.has(ev.category)
+    );
+
+    if (notifiableEvents.length === 0) {
       return Response.json({ ok: true, sent: 0, reason: "no events today" });
     }
 
-    // Tum cihaz token'lari
+    // Kurumsal etkinlikler herkesin ozetinde yer alir; kisisel etkinlikler
+    // yalnizca kendi ekleyenin ve katilimcilarin ozetinde yer alir (migration
+    // oncesi/beklenmedik null degerler de kurumsal sayilir — kolonun
+    // default'uyla tutarli)
+    const corporateEvents = notifiableEvents.filter((ev) => ev.visibility !== "personal");
+    const personalEvents = notifiableEvents.filter((ev) => ev.visibility === "personal");
+
+    const personalEventIds = personalEvents.map((e) => e.id);
+    const attendeesByEvent = new Map<string, string[]>();
+    if (personalEventIds.length > 0) {
+      const { data: attRows, error: attErr } = await sb
+        .from("event_attendees")
+        .select("event_id, user_id")
+        .in("event_id", personalEventIds);
+      if (attErr) throw attErr;
+      for (const row of attRows ?? []) {
+        const arr = attendeesByEvent.get(row.event_id as string) ?? [];
+        arr.push(row.user_id as string);
+        attendeesByEvent.set(row.event_id as string, arr);
+      }
+    }
+    function isRelevantToUser(ev: (typeof personalEvents)[number], userId: string): boolean {
+      return ev.user_id === userId || (attendeesByEvent.get(ev.id) ?? []).includes(userId);
+    }
+
+    // Tum cihaz token'lari, kullanici bazinda gruplu
     const { data: tokenRows, error: tokenErr } = await sb
       .from("device_tokens")
-      .select("push_token");
+      .select("user_id, push_token");
     if (tokenErr) throw tokenErr;
-    const pushTokens = (tokenRows ?? []).map((t) => t.push_token as string);
+    const tokensByUser = new Map<string, string[]>();
+    for (const row of tokenRows ?? []) {
+      const arr = tokensByUser.get(row.user_id as string) ?? [];
+      arr.push(row.push_token as string);
+      tokensByUser.set(row.user_id as string, arr);
+    }
 
-    if (pushTokens.length === 0) {
+    if (tokensByUser.size === 0) {
       return Response.json({ ok: true, sent: 0, reason: "no tokens" });
     }
 
-    // Ozet mesaji olustur
-    const count = events.length;
-    const firstTime = new Date(events[0].start_time).toLocaleTimeString("tr-TR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const lastTime = new Date(events[events.length - 1].start_time).toLocaleTimeString("tr-TR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const eventLines = events
-      .map((ev) => {
-        const time = new Date(ev.start_time).toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        return `• ${time} — ${ev.title}`;
-      })
-      .slice(0, 5) // En fazla 5 etkinlik listele
-      .join("\n");
-
-    const body =
-      count === 1
+    function buildSummaryBody(evs: typeof notifiableEvents): string {
+      const count = evs.length;
+      const firstTime = new Date(evs[0].start_time).toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const lastTime = new Date(evs[evs.length - 1].start_time).toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return count === 1
         ? `Bugun ${count} etkinligin var. Ilki ${firstTime}de.`
         : `Bugun ${count} etkinligin var (${firstTime} - ${lastTime}).`;
+    }
 
-    const messages: PushMessage[] = pushTokens.map((to) => ({
-      to,
-      title: "Bugunun plani",
-      body,
-      sound: "default",
-      data: { screen: "/(tabs)" },
-    }));
+    // Her kullanici icin: tum kurumsal etkinlikler + kendi kisisel etkinlikleri
+    const messages: PushMessage[] = [];
+    for (const [userId, tokens] of tokensByUser) {
+      const merged = [...corporateEvents, ...personalEvents.filter((e) => isRelevantToUser(e, userId))].sort(
+        (a, b) => a.start_time.localeCompare(b.start_time)
+      );
+      if (merged.length === 0) continue;
+      const body = buildSummaryBody(merged);
+      for (const to of tokens) {
+        messages.push({ to, title: "Bugunun plani", body, sound: "default", data: { screen: "/(tabs)" } });
+      }
+    }
+
+    if (messages.length === 0) {
+      return Response.json({ ok: true, sent: 0, reason: "no relevant events for any user" });
+    }
 
     let sentCount = 0;
     const invalidTokens: string[] = [];
@@ -135,9 +172,9 @@ Deno.serve(async (_req) => {
     }
 
     console.log(
-      `[send-daily-summary] ${count} etkinlik, ${sentCount} bildirim gonderildi, ${invalidTokens.length} olu token silindi.`
+      `[send-daily-summary] ${notifiableEvents.length} etkinlik, ${sentCount} bildirim gonderildi, ${invalidTokens.length} olu token silindi.`
     );
-    return Response.json({ ok: true, sent: sentCount, events: count });
+    return Response.json({ ok: true, sent: sentCount, events: notifiableEvents.length });
   } catch (err) {
     console.error("[send-daily-summary] kritik hata:", err);
     return Response.json({ error: String(err) }, { status: 500 });

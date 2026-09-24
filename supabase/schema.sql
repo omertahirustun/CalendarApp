@@ -92,7 +92,7 @@ alter table events add column if not exists reminder_10m_sent_at timestamptz;
 -- v4 Migration: etkinlik kategorileri
 -- ============================================================
 
--- 'meeting' | 'project' | 'payment' | 'health' | 'other'
+-- 'meeting' | 'project' | 'payment' | 'shoot' | 'delivery' | 'availability' | 'other'
 alter table events add column if not exists category text default 'other';
 
 -- ============================================================
@@ -200,3 +200,125 @@ create index if not exists idx_device_tokens_user on device_tokens (user_id);
 --   );
 --   $$
 -- );
+
+-- ============================================================
+-- v10 Migration: 'availability' (musaitlik) kategorisi sessiz kalir
+-- send-event-reminders ve send-daily-summary bu kategorideki
+-- etkinlikler icin push bildirimi gondermez (kod tarafinda filtrelenir,
+-- semada ek bir kolon/kisit gerekmez).
+-- ============================================================
+
+-- ============================================================
+-- v11 Migration: kisisel / kurumsal etkinlik gorunurlugu
+-- ============================================================
+
+alter table events add column if not exists visibility text not null default 'corporate'
+  check (visibility in ('personal', 'corporate'));
+
+-- v7'deki tek "for all using(true)" politikasi SELECT/INSERT/UPDATE/DELETE'e ayrilir:
+-- kurumsal etkinlikler herkese acik kalir; kisisel etkinlikler yalnizca
+-- ekleyen kisiye (auth.jwt() ->> 'sub' = user_id) gorunur/degistirilebilir.
+drop policy if exists "shared events" on events;
+
+create policy "events select" on events
+  for select to authenticated
+  using (visibility = 'corporate' or auth.jwt() ->> 'sub' = user_id);
+
+create policy "events insert" on events
+  for insert to authenticated
+  with check (auth.jwt() ->> 'sub' = user_id);
+
+create policy "events update" on events
+  for update to authenticated
+  using (visibility = 'corporate' or auth.jwt() ->> 'sub' = user_id)
+  with check (visibility = 'corporate' or auth.jwt() ->> 'sub' = user_id);
+
+create policy "events delete" on events
+  for delete to authenticated
+  using (visibility = 'corporate' or auth.jwt() ->> 'sub' = user_id);
+
+-- ============================================================
+-- v12 Migration: etkinlik katilimcilari ("kiminle")
+-- ============================================================
+
+-- Bilinen uygulama kullanicilari: isim, katilimci secicisinde listelemek icin.
+-- Her kullanici kendi satirini yazar (client'ta giris yapinca upsert edilir).
+create table if not exists profiles (
+  user_id text primary key,
+  display_name text not null,
+  updated_at timestamptz default now()
+);
+
+alter table profiles enable row level security;
+
+drop policy if exists "profiles select" on profiles;
+create policy "profiles select" on profiles
+  for select to authenticated
+  using (true);
+
+drop policy if exists "profiles upsert self" on profiles;
+create policy "profiles upsert self" on profiles
+  for insert to authenticated
+  with check (auth.jwt() ->> 'sub' = user_id);
+
+drop policy if exists "profiles update self" on profiles;
+create policy "profiles update self" on profiles
+  for update to authenticated
+  using (auth.jwt() ->> 'sub' = user_id)
+  with check (auth.jwt() ->> 'sub' = user_id);
+
+-- Etkinlik <-> katilimci iliskisi. Yalnizca etkinligi ekleyen kisi
+-- katilimci ekleyip cikarabilir (owner-managed liste).
+create table if not exists event_attendees (
+  event_id uuid not null references events (id) on delete cascade,
+  user_id text not null references profiles (user_id),
+  created_at timestamptz default now(),
+  primary key (event_id, user_id)
+);
+
+create index if not exists idx_event_attendees_user on event_attendees (user_id);
+
+alter table event_attendees enable row level security;
+
+-- Gorebilme: kendi katilimcilik kaydin, ya da zaten erisebildigin bir
+-- etkinligin (kurumsal / kendi ekledigin) katilimci listesi.
+drop policy if exists "event_attendees select" on event_attendees;
+create policy "event_attendees select" on event_attendees
+  for select to authenticated
+  using (
+    auth.jwt() ->> 'sub' = user_id
+    or exists (
+      select 1 from events e
+      where e.id = event_attendees.event_id
+        and (e.visibility = 'corporate' or e.user_id = auth.jwt() ->> 'sub')
+    )
+  );
+
+-- Ekleme/silme: yalnizca etkinligi ekleyen kisi
+drop policy if exists "event_attendees insert" on event_attendees;
+create policy "event_attendees insert" on event_attendees
+  for insert to authenticated
+  with check (
+    exists (select 1 from events e where e.id = event_attendees.event_id and e.user_id = auth.jwt() ->> 'sub')
+  );
+
+drop policy if exists "event_attendees delete" on event_attendees;
+create policy "event_attendees delete" on event_attendees
+  for delete to authenticated
+  using (
+    exists (select 1 from events e where e.id = event_attendees.event_id and e.user_id = auth.jwt() ->> 'sub')
+  );
+
+-- Kisisel etkinlikte "events select" politikasi genisletiliyor: katilimci
+-- olarak eklenen kisi de kendine ait olmayan kisisel etkinligi gorebilsin.
+drop policy if exists "events select" on events;
+create policy "events select" on events
+  for select to authenticated
+  using (
+    visibility = 'corporate'
+    or auth.jwt() ->> 'sub' = user_id
+    or exists (
+      select 1 from event_attendees ea
+      where ea.event_id = events.id and ea.user_id = auth.jwt() ->> 'sub'
+    )
+  );

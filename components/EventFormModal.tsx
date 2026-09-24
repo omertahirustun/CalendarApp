@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import {
   View,
-  Pressable,
-  Alert
+  Pressable
 } from "react-native";
+import { useAuth } from "@clerk/clerk-expo";
 import { Text, TextInput } from "./AppText";
 import { Trash2, ChevronLeft, ChevronRight, Clock } from "lucide-react-native";
 import FormModal, { Field, inputClass } from "./FormModal";
 import ColorPicker from "./ColorPicker";
 import CategoryPicker from "./CategoryPicker";
+import VisibilityPicker from "./VisibilityPicker";
+import AttendeePicker from "./AttendeePicker";
 import TimeWheelPicker from "./TimeWheelPicker";
 import { addDays, formatFullDate, isValidTime, normalizeTime, startOfDay } from "../lib/date";
-import { EVENT_CATEGORY_META, type EventRow, type EventCategory } from "../lib/types";
+import { EVENT_CATEGORY_META, type EventRow, type EventCategory, type EventVisibility } from "../lib/types";
+import { confirmDeleteEvent } from "../lib/confirmDeleteEvent";
 import type { EventInput } from "../lib/api";
 
 interface EventFormModalProps {
@@ -35,6 +38,7 @@ export default function EventFormModal({
   editing,
   baseDate,
 }: EventFormModalProps) {
+  const { userId } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -45,6 +49,8 @@ export default function EventFormModal({
   const [endTime, setEndTime] = useState("10:00");
   const [color, setColor] = useState<string>("#2D26F0");
   const [category, setCategory] = useState<EventCategory>("other");
+  const [visibility, setVisibility] = useState<EventVisibility>("corporate");
+  const [attendeeUserIds, setAttendeeUserIds] = useState<string[]>([]);
   // Saat tekerlegi yalnizca ilgili alana dokununca acilir
   const [activeWheel, setActiveWheel] = useState<"start" | "end" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +72,8 @@ export default function EventFormModal({
       setEndTime(`${String(e.getHours()).padStart(2, "0")}:${String(e.getMinutes()).padStart(2, "0")}`);
       setColor(editing.color);
       setCategory(editing.category ?? "other");
+      setVisibility(editing.visibility ?? "corporate");
+      setAttendeeUserIds((editing.attendees ?? []).map((a) => a.user_id));
     } else {
       setTitle("");
       setDescription("");
@@ -76,6 +84,8 @@ export default function EventFormModal({
       setEndTime("10:00");
       setColor("#2D26F0");
       setCategory("other");
+      setVisibility("corporate");
+      setAttendeeUserIds([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, editing]);
@@ -89,17 +99,8 @@ export default function EventFormModal({
 
   function handleDelete() {
     if (!editing || !onDelete) return;
-    Alert.alert("Etkinliği Sil", `"${editing.title}" silinsin mi?`, [
-      { text: "Vazgeç", style: "cancel" },
-      {
-        text: "Sil",
-        style: "destructive",
-        onPress: () => {
-          // Silme hatasi cagiran ekranda Alert ile gosterilir; modal yine kapanir
-          void Promise.resolve(onDelete()).finally(() => onClose());
-        },
-      },
-    ]);
+    // Silme hatasi cagiran ekranda Alert ile gosterilir; modal yine kapanir
+    confirmDeleteEvent(editing.title, () => Promise.resolve(onDelete()).finally(() => onClose()));
   }
 
   async function handleSave() {
@@ -126,7 +127,9 @@ export default function EventFormModal({
         location: location.trim() || null,
         color,
         category,
+        visibility,
         created_by_name: null,
+        attendee_user_ids: attendeeUserIds,
       });
       onClose();
     } catch (e) {
@@ -171,6 +174,10 @@ export default function EventFormModal({
         />
       </Field>
 
+      <Field label="Görünürlük">
+        <VisibilityPicker value={visibility} onChange={setVisibility} />
+      </Field>
+
       <Field label="Açıklama (opsiyonel)">
         <TextInput
           className={inputClass}
@@ -190,6 +197,10 @@ export default function EventFormModal({
           onChangeText={setLocation}
           placeholderTextColor="#9CA3AF"
         />
+      </Field>
+
+      <Field label="Kiminle (opsiyonel)">
+        <AttendeePicker value={attendeeUserIds} onChange={setAttendeeUserIds} excludeUserId={userId} />
       </Field>
 
       <Field label="Başlangıç Tarihi">
@@ -272,7 +283,13 @@ export default function EventFormModal({
       </Field>
 
       <Field label="Renk">
-        <ColorPicker value={color} onChange={setColor} />
+        {visibility === "personal" ? (
+          <Text className="text-gray-400 text-xs">
+            Kişisel etkinlikler tek renkte gösterilir.
+          </Text>
+        ) : (
+          <ColorPicker value={color} onChange={setColor} />
+        )}
       </Field>
     </FormModal>
   );

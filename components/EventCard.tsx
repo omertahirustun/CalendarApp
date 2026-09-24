@@ -1,11 +1,13 @@
+import { memo } from "react";
 import {
   View,
   Pressable
 } from "react-native";
 import { Text } from "./AppText";
 import { User } from "lucide-react-native";
-import { formatTime } from "../lib/date";
+import { formatDayMonth, formatTime, isMultiDay } from "../lib/date";
 import { CARD_RIPPLE, delayedPress } from "../lib/pressDelay";
+import { getEventFillColor } from "../lib/eventColor";
 import {
   EVENT_CATEGORY_META,
   type EventRow,
@@ -18,8 +20,12 @@ interface EventCardProps {
   onPress?: () => void;
 }
 
-export default function EventCard({ event, onPress }: EventCardProps) {
-  const meta = EVENT_CATEGORY_META[(event.category ?? "other") as EventCategory];
+function EventCardBase({ event, onPress }: EventCardProps) {
+  // Kaldirilan eski kategorilere (health/availability) ait kayitlar DB'de
+  // hala olabilir; eslesme bulunamazsa "other"a duser (crash yerine)
+  const meta =
+    EVENT_CATEGORY_META[(event.category ?? "other") as EventCategory] ?? EVENT_CATEGORY_META.other;
+  const multiDay = isMultiDay(event);
 
   return (
     // Renk seridi: absolute sol bar (border-l-4 gorunumu, cakismasiz)
@@ -27,7 +33,7 @@ export default function EventCard({ event, onPress }: EventCardProps) {
       <View
         pointerEvents="none"
         className="absolute left-0 top-0 bottom-0 w-1"
-        style={{ backgroundColor: event.color }}
+        style={{ backgroundColor: getEventFillColor(event) }}
       />
       <Pressable
         onPress={delayedPress(onPress)}
@@ -50,9 +56,16 @@ export default function EventCard({ event, onPress }: EventCardProps) {
                   {meta.label}
                 </Text>
               </View>
-              <Text className="text-gray-500 text-xs font-semibold">
-                {formatTime(event.start_time)} – {formatTime(event.end_time)}
-              </Text>
+              <View className="items-end">
+                <Text className="text-gray-500 text-xs font-semibold">
+                  {formatTime(event.start_time)} – {formatTime(event.end_time)}
+                </Text>
+                {multiDay && (
+                  <Text className="text-gray-400 text-[10px] font-semibold mt-0.5">
+                    {formatDayMonth(event.start_time)} – {formatDayMonth(event.end_time)}
+                  </Text>
+                )}
+              </View>
             </View>
 
             {/* Baslik + ekleyen kisi ayni satirda */}
@@ -90,3 +103,8 @@ export default function EventCard({ event, onPress }: EventCardProps) {
     </View>
   );
 }
+
+/** Liste kaydirirken diger kartlarin gereksiz re-render'ini onler */
+const EventCard = memo(EventCardBase);
+
+export default EventCard;

@@ -1,60 +1,90 @@
 {
-    "expo": {
-        "name": "Adezyon",
-        "slug": "Adezyon",
-        "version": "1.0.0",
-        "orientation": "portrait",
-        "icon": "./assets/icon.png",
-        "userInterfaceStyle": "light",
-        "scheme": "calendarapp",
-        "ios": {
-            "supportsTablet": true,
-            "bundleIdentifier": "com.sezeryanpatates.calendarapp"
-        },
-        "android": {
-            "package": "com.sezeryanpatates.calendarapp",
-            "googleServicesFile": "./google-services.json",
-            "adaptiveIcon": {
-                "foregroundImage": "./assets/adaptive-icon.png",
-                "backgroundColor": "#2D26F0"
-            },
-            "predictiveBackGestureEnabled": false,
-            "softwareKeyboardLayoutMode": "resize"
-        },
-        "web": {
-            "favicon": "./assets/favicon.png",
-            "bundler": "metro"
-        },
-        "plugins": [
-            "expo-router",
-            "expo-secure-store",
-            [
-                "expo-notifications",
-                {
-                    "color": "#2D26F0",
-                    "defaultChannel": "reminders"
-                }
-            ],
-            "expo-status-bar",
-            "expo-web-browser",
-            [
-                "expo-splash-screen",
-                {
-                    "image": "./assets/splash-icon.png",
-                    "resizeMode": "contain",
-                    "backgroundColor": "#ffffff"
-                }
-            ]
-        ],
-        "experiments": {
-            "typedRoutes": true
-        },
-        "extra": {
-            "router": {},
-            "eas": {
-                "projectId": "9fd7ea6d-f629-422d-8cda-c05a3e0d8357"
+  "expo": {
+    "name": "Adezyon",
+    "slug": "CalendarApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "calendarapp",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sezeryanpatates.calendarapp",
+      "appleTeamId": "24D9766S47",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.sezeryanpatates.calendarapp.widget"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.sezeryanpatates.calendarapp",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2D26F0"
+      },
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#2D26F0",
+          "defaultChannel": "reminders"
+        }
+      ],
+      "expo-status-bar",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "CalendarWidget",
+              "label": "Takvim",
+              "description": "Bugünün ve yaklaşan etkinliklerin özeti",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "maxResizeWidth": "340dp",
+              "maxResizeHeight": "380dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 5,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
             }
-        },
-        "owner": "sezeryanpatates"
-    }
+          ]
+        }
+      ],
+      "@bacons/apple-targets"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9fd7ea6d-f629-422d-8cda-c05a3e0d8357"
+      }
+    },
+    "owner": "sezeryanpatates"
+  }
 }

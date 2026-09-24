@@ -40,3 +40,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# iOS imzalama malzemeleri (sertifika/anahtar/profil) — asla commit edilmemeli
+/ios-credentials
+/credentials.json
